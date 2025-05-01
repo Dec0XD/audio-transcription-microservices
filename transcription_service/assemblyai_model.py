@@ -1,41 +1,38 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from transformers import WhisperForConditionalGeneration, WhisperProcessor
-import torch
-import librosa
 import os
 from pydub import AudioSegment
 from dotenv import load_dotenv
 import time
 import logging
+import assemblyai as aai
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 load_dotenv()
-HF_TOKEN = os.getenv("HF_TOKEN")
-if not HF_TOKEN:
-    raise ValueError("Token Hugging Face não fornecido. Defina HF_TOKEN no .env.")
+AAI_API_KEY = os.getenv("AAI_API_KEY")
+if not AAI_API_KEY:
+    raise ValueError("Chave da API AssemblyAI não fornecida. Defina AAI_API_KEY no .env.")
+
+# Configuração do AssemblyAI
+aai.settings.api_key = AAI_API_KEY
+aai_config = aai.TranscriptionConfig(language_code="pt")
+aai_transcriber = aai.Transcriber(config=aai_config)
 
 app = FastAPI()
-
-# Carregar modelo Whisper
-model_name = "openai/whisper-large-v3"
-model = WhisperForConditionalGeneration.from_pretrained(model_name, token=HF_TOKEN)
-processor = WhisperProcessor.from_pretrained(model_name, token=HF_TOKEN)
-model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 
 @app.get("/health")
 async def health_check():
     return {
         "status": "ok",
-        "model": model_name,
-        "device": str(model.device)
+        "model": "AssemblyAI",
+        "device": "cloud"
     }
 
 @app.post("/transcribe_segment")
-async def transcribe_segment(file: UploadFile = File(...), start: float = 0.0, end: float = None):
+async def transcribe_segment_assemblyai(file: UploadFile = File(...), start: float = 0.0, end: float = None):
     start_time = time.time()
-    logger.info(f"Recebido pedido para transcrever segmento {start}s - {end}s com Whisper")
+    logger.info(f"Recebido pedido para transcrever segmento {start}s - {end}s com AssemblyAI")
 
     temp_path = "temp_audio.wav"
     with open(temp_path, "wb") as f:
@@ -59,21 +56,13 @@ async def transcribe_segment(file: UploadFile = File(...), start: float = 0.0, e
     segment_duration = (end_ms - start_ms) / 1000.0
     logger.info(f"Segmento exportado com duração de {segment_duration:.2f}s")
 
-    audio_data, sample_rate = librosa.load(segment_path, sr=16000)
-    input_features = processor(
-        audio_data,
-        sampling_rate=sample_rate,
-        return_tensors="pt",
-        language="pt",
-        return_attention_mask=True
-    ).to(model.device)
-
-    with torch.no_grad():
-        predicted_ids = model.generate(
-            input_features["input_features"],
-            attention_mask=input_features["attention_mask"]
-        )
-    transcription = processor.decode(predicted_ids[0], skip_special_tokens=True)
+    try:
+        transcript = aai_transcriber.transcribe(segment_path)
+        transcription = transcript.text.strip() if transcript.text else ""
+    except Exception as e:
+        os.remove(temp_path)
+        os.remove(segment_path)
+        raise HTTPException(status_code=500, detail=f"Erro na transcrição com AssemblyAI: {str(e)}")
 
     os.remove(temp_path)
     os.remove(segment_path)
@@ -84,4 +73,4 @@ async def transcribe_segment(file: UploadFile = File(...), start: float = 0.0, e
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8002)
