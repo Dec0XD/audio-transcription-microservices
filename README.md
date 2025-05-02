@@ -126,7 +126,7 @@ python transcription_service/assemblyai_model.py
 python diarization_service/pyannote_model.py
 
 # Terminal 4 (Interface)
-streamlit run frontend/streamlit.py
+streamlit run frontend/app.py
 ```
 
 <p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
