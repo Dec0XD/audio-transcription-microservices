@@ -14,113 +14,113 @@
   <a href="https://github.com/Dec0XD/audio-transcription-microservices">
     <img src="imgs/Inicial.png" alt="Logo" width="1000" height="500">
   </a>
-  <h3 align="center">Transcrição de Áudio/Vídeo com Segmentação de Falantes</h3>
+  <h3 align="center">Audio/Video Transcription with Speaker Diarization</h3>
   <p align="center">
-    Uma aplicação de transcrição de áudio/vídeo com segmentação de falantes, usando uma arquitetura de microserviços com Streamlit, FastAPI, Whisper, AssemblyAI e Pyannote, otimizada para execução local com suporte a GPU.
+    A GPU-accelerated transcription system with speaker diarization, built on Whisper, Pyannote, and FastAPI. Optimized for local execution with NVIDIA GPU support.
     <br />
-    <a href="https://github.com/Dec0XD/audio-transcription-microservices"><strong>Explore a documentação »</strong></a>
+    <a href="https://github.com/Dec0XD/audio-transcription-microservices"><strong>Explore the docs »</strong></a>
     <br />
     <br />
-    <a href="https://github.com/Dec0XD/audio-transcription-microservices">Ver Demonstração</a>
+    <a href="https://github.com/Dec0XD/audio-transcription-microservices">View Demo</a>
     ·
-    <a href="https://github.com/Dec0XD/audio-transcription-microservices/issues">Reportar Bug</a>
+    <a href="https://github.com/Dec0XD/audio-transcription-microservices/issues">Report Bug</a>
     ·
-    <a href="https://github.com/Dec0XD/audio-transcription-microservices/issues">Solicitar Funcionalidade</a>
+    <a href="https://github.com/Dec0XD/audio-transcription-microservices/issues">Request Feature</a>
   </p>
 </div>
 
 <!-- TABLE OF CONTENTS -->
 <details>
-  <summary>Índice</summary>
+  <summary>Table of Contents</summary>
   <ol>
     <li>
-      <a href="#sobre-o-projeto">Sobre o Projeto</a>
+      <a href="#about-the-project">About The Project</a>
       <ul>
-        <li><a href="#construído-com">Construído Com</a></li>
+        <li><a href="#built-with">Built With</a></li>
       </ul>
     </li>
     <li>
-      <a href="#primeiros-passos">Primeiros Passos</a>
+      <a href="#getting-started">Getting Started</a>
       <ul>
-        <li><a href="#pré-requisitos">Pré-requisitos</a></li>
-        <li><a href="#instalação">Instalação</a></li>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#installation">Installation</a></li>
       </ul>
     </li>
-    <li><a href="#uso">Uso</a></li>
+    <li><a href="#usage">Usage</a></li>
     <li><a href="#roadmap">Roadmap</a></li>
-    <li><a href="#contribuição">Contribuição</a></li>
-    <li><a href="#licença">Licença</a></li>
-    <li><a href="#contato">Contato</a></li>
-    <li><a href="#agradecimentos">Agradecimentos</a></li>
+    <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#license">License</a></li>
+    <li><a href="#contact">Contact</a></li>
+    <li><a href="#acknowledgments">Acknowledgments</a></li>
   </ol>
 </details>
 
 <!-- ABOUT THE PROJECT -->
-## Sobre o Projeto
+## About The Project
 
-Esta aplicação permite aos usuários fazer upload de arquivos de áudio ou vídeo, convertê-los para o formato .wav, transcrevê-los usando o modelo Whisper da OpenAI ou AssemblyAI, e, opcionalmente, segmentar os falantes com o Pyannote. **Totalmente reformulada com arquitetura integrada**, o sistema agora executa todos os serviços em um único processo FastAPI otimizado, utilizando Streamlit para uma interface de usuário intuitiva. O projeto é **altamente otimizado para GPUs NVIDIA** (RTX 3060, RTX 4090, etc.), aproveitando CUDA e half-precision para acelerar significativamente o processamento de Whisper e Pyannote.
+This application enables users to upload audio or video files, convert them to .wav format, transcribe them using OpenAI's Whisper or AssemblyAI, and optionally perform speaker diarization with Pyannote. The system has been **completely redesigned with an integrated architecture**, running all services in a single optimized FastAPI process, with a Streamlit frontend for an intuitive user experience. The project is **highly optimized for NVIDIA GPUs** (RTX 3060, RTX 4090, etc.), leveraging CUDA and half-precision to significantly accelerate Whisper and Pyannote processing.
 
-### 🚀 Nova Arquitetura Integrada
+### Integrated Architecture
 
-O projeto foi **completamente reestruturado** para máxima simplicidade e performance:
+The project has been **fully restructured** for maximum simplicity and performance:
 
 ```
 📁 Transcricao-de-audio/
 ├── 📁 modules/backend/
 │   ├── 📁 src/
-│   │   ├── main.py                    # API Gateway Integrado (Porta 2020)
-│   │   ├── config.py                  # Configurações (.env, GPU settings)
-│   │   ├── models.py                  # Modelos SQLAlchemy
-│   │   ├── security.py                # Autenticação JWT
+│   │   ├── main.py                    # Integrated API Gateway (Port 2020)
+│   │   ├── config.py                  # Configuration (.env, GPU settings)
+│   │   ├── models.py                  # SQLAlchemy models
+│   │   ├── security.py                # JWT authentication
 │   │   ├── 📁 services/
-│   │   │   ├── diarization_engine.py  # Pyannote GPU-optimized
+│   │   │   ├── diarization_engine.py  # GPU-optimized Pyannote
 │   │   │   ├── transcription_engine.py # Whisper + AssemblyAI engines
 │   │   │   ├── diarization.py         # Legacy service
 │   │   │   ├── transcription.py       # Legacy service
 │   │   │   └── orchestrator.py        # Service orchestration
 │   │   └── 📁 utils/
-│   │       └── gpu_utils.py           # Otimizações CUDA/cuDNN
-│   ├── requirements.txt               # Dependências Python
-│   ├── .env.example                   # Template de configuração
+│   │       └── gpu_utils.py           # CUDA/cuDNN optimizations
+│   ├── requirements.txt               # Python dependencies
+│   ├── .env.example                   # Configuration template
 │   └── 📁 database/                   # SQLite database
 ├── 📁 frontend/
-│   └── app.py                         # Interface Streamlit
-└── .env                               # Configurações principais
+│   └── app.py                         # Streamlit interface
+└── .env                               # Main configuration
 ```
 
-**✨ Principais Melhorias:**
-- **Processo Único** - Um comando inicia tudo (porta 2020)
-- **GPU First** - Detecção automática e otimização CUDA
-- **Performance** - Whisper Large em GPU ~10x mais rápido
-- **Configuração Simples** - Scripts PowerShell automatizados
-- **Memória Otimizada** - Half-precision (float16) para RTX series
-- **Health Checks** - Monitoramento de modelos em tempo real
-- **Logs Detalhados** - Informações de GPU, VRAM e tempos
+**Key Improvements:**
+- **Single Process** - One command starts everything (port 2020)
+- **GPU First** - Automatic CUDA detection and optimization
+- **Performance** - Whisper Large on GPU approximately 10x faster
+- **Simple Setup** - Automated PowerShell scripts
+- **Memory Optimized** - Half-precision (float16) for RTX series
+- **Health Checks** - Real-time model monitoring
+- **Detailed Logs** - GPU info, VRAM usage, and timing metrics
 
-### Principais Recursos
+### Core Features
 
-- **Transcrição Automática**: Suporte a Whisper (local) e AssemblyAI (cloud) com seleção de modelo.
-- **Segmentação de Falantes**: Identifica quem fala e quando, usando Pyannote, com filtragem de segmentos curtos ou silenciosos para maior robustez.
-- **Interface Intuitiva**: Streamlit oferece uma UI simples com verificação de disponibilidade dos modelos.
-- **Otimização para CPU/GPU**: Funciona em CPUs com tempos de processamento ajustados ou GPUs para maior rapidez.
-- **Progresso no Terminal**: Exibe progresso da diarização no terminal.
+- **Automatic Transcription**: Support for local Whisper and cloud-based AssemblyAI with model selection.
+- **Speaker Diarization**: Identifies who speaks and when using Pyannote, with filtering for short or silent segments for improved robustness.
+- **Intuitive Interface**: Streamlit provides a simple UI with model availability verification.
+- **CPU/GPU Optimization**: Works on CPUs with adjusted processing times or GPUs for faster performance.
+- **Terminal Progress**: Displays diarization progress in the terminal.
 
-<p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-### Construído Com
-- **Python 3.11+** - Runtime principal
-- **Streamlit** - Interface web interativa
-- **FastAPI** - API REST backend
-- **PyTorch + CUDA** - Framework de ML com aceleração GPU
+### Built With
+- **Python 3.11+** - Core runtime
+- **Streamlit** - Interactive web interface
+- **FastAPI** - Backend REST API
+- **PyTorch + CUDA** - ML framework with GPU acceleration
 - **Transformers (Hugging Face)** - Whisper Large v3
-- **Pyannote.audio** - Diarização de falantes
-- **AssemblyAI** - Transcrição cloud (alternativa)
-- **SQLAlchemy** - ORM para persistência
-- **Pydantic** - Validação e configuração
-- **librosa + pydub** - Processamento de áudio
-- **NVIDIA CUDA + cuDNN** - Aceleração GPU
+- **Pyannote.audio** - Speaker diarization
+- **AssemblyAI** - Cloud transcription (alternative)
+- **SQLAlchemy** - ORM for persistence
+- **Pydantic** - Validation and configuration
+- **librosa + pydub** - Audio processing
+- **NVIDIA CUDA + cuDNN** - GPU acceleration
 
-### 🏗️ Arquitetura Integrada
+### System Architecture
 
 ```
 ┌─────────────┐
@@ -129,9 +129,9 @@ O projeto foi **completamente reestruturado** para máxima simplicidade e perfor
        │ HTTP REST
        ▼
 ┌────────────────────────────────────────────┐
-│         Backend Integrado                  │ FastAPI (Port 2020)
+│         Integrated Backend                 │ FastAPI (Port 2020)
 │  ┌──────────────────────────────────────┐  │
-│  │  Engines Carregados na Startup      │  │
+│  │  Models Loaded at Startup            │  │
 │  │  ┌────────────┐ ┌────────────────┐  │  │
 │  │  │ Pyannote   │ │ Whisper Large  │  │  │
 │  │  │ (GPU/CUDA) │ │ (GPU/float16)  │  │  │
@@ -140,11 +140,11 @@ O projeto foi **completamente reestruturado** para máxima simplicidade e perfor
 │  │  │     AssemblyAI Client          │  │  │
 │  │  └────────────────────────────────┘  │  │
 │  └──────────────────────────────────────┘  │
-│  • Orquestração Integrada                 │
-│  • Autenticação JWT                       │
-│  • Persistência SQLite                    │
-│  • Health Checks                          │
-│  • GPU Optimization                       │
+│  • Integrated Orchestration                │
+│  • JWT Authentication                      │
+│  • SQLite Persistence                      │
+│  • Health Checks                           │
+│  • GPU Optimization                        │
 └────────────────────┬───────────────────────┘
                      │
                      ▼
@@ -155,74 +155,74 @@ O projeto foi **completamente reestruturado** para máxima simplicidade e perfor
             └────────────────┘
 ```
 
-**Fluxo Otimizado:**
-1. **Startup**: Modelos carregados uma vez na GPU
-2. **Upload**: Frontend → Backend unificado
-3. **Processamento**: Engines internos (sem HTTP overhead)
-4. **Diarização**: Pyannote identifica falantes na GPU
-5. **Transcrição**: Whisper processa segmentos em float16
-6. **Resposta**: Resultados agregados e persistidos
+**Optimized Workflow:**
+1. **Startup**: Models loaded once into GPU
+2. **Upload**: Frontend → Unified backend
+3. **Processing**: Internal engines (no HTTP overhead)
+4. **Diarization**: Pyannote identifies speakers on GPU
+5. **Transcription**: Whisper processes segments in float16
+6. **Response**: Aggregated results persisted
 
-<p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- GETTING STARTED -->
-## Primeiros Passos
+## Getting Started
 
-### Pré-requisitos
-- **Python 3.11+** (recomendado para melhor compatibilidade)
-- **Conta no Hugging Face** (token necessário para Pyannote)
-- **Conta na AssemblyAI** (opcional, para transcrição cloud)
-- **FFmpeg** (conversão de áudio/vídeo)
-- **GPU NVIDIA** (recomendado):
-  - CUDA Toolkit 11.8 ou 12.x
+### Prerequisites
+- **Python 3.11+** (recommended for best compatibility)
+- **Hugging Face account** (token required for Pyannote)
+- **AssemblyAI account** (optional, for cloud transcription)
+- **FFmpeg** (audio/video conversion)
+- **NVIDIA GPU** (recommended):
+  - CUDA Toolkit 11.8 or 12.x
   - cuDNN 8.9+
-  - Driver NVIDIA 531+ (para RTX series)
-  - **VRAM mínima**: 8GB
+  - NVIDIA Driver 531+ (for RTX series)
+  - **Minimum VRAM**: 8GB
 
-### Instalação
+### Installation
 
-#### 🚀 Instalação Rápida (Recomendado)
+#### Quick Installation (Recommended)
 
-**1. Clone e Configure:**
+**1. Clone and Setup:**
 ```powershell
 git clone https://github.com/Dec0XD/audio-transcription-microservices.git
 cd audio-transcription-microservices
 ```
 
-**2. Configure o Ambiente:**
+**2. Configure Environment:**
 ```powershell
 cd modules\backend
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 
-# Para GPU NVIDIA (recomendado)
+# For NVIDIA GPU (recommended)
 pip uninstall -y torch torchvision torchaudio
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 ```
 
-**3. Configurar API Keys:**
+**3. Configure API Keys:**
 ```powershell
-# Copie e edite o arquivo .env na raiz do projeto
+# Copy and edit the .env file in the project root
 copy modules\backend\.env.example .env
-# OU edite o .env existente na raiz
+# OR edit existing .env in the root
 ```
 
-**.env (obrigatório - localizado na raiz do projeto):**
+**.env (required - located in project root):**
 ```ini
-# Hugging Face (obrigatório para Pyannote)
-HF_TOKEN=seu_token_huggingface_aqui
+# Hugging Face (required for Pyannote)
+HF_TOKEN=your_huggingface_token_here
 
-# AssemblyAI (opcional, para transcrição cloud)
-AAI_API_KEY=seu_token_assemblyai_aqui
+# AssemblyAI (optional, for cloud transcription)
+AAI_API_KEY=your_assemblyai_token_here
 
-# Configurações de GPU (opcional)
+# GPU Settings (optional)
 FORCE_CPU=false
 GPU_MEMORY_FRACTION=0.8
 WHISPER_DTYPE=auto
 ```
 
-**4. Executar (2 comandos apenas!):**
+**4. Run (only 2 commands!):**
 
 Terminal 1 - Backend:
 ```powershell
@@ -236,141 +236,141 @@ cd frontend
 streamlit run app.py
 ```
 
-**🔗 URLs:**
+**URLs:**
 - **Frontend**: http://localhost:8501
 - **API Docs**: http://localhost:2020/docs
 - **Health Check**: http://localhost:2020/health
 
-#### 🛠️ Comandos Úteis
+#### Useful Commands
 
-Verificar se os modelos estão funcionando:
+Verify models are working:
 
 ```powershell
-# Testar PyTorch + CUDA
-python -c "import torch; print(f'CUDA disponível: {torch.cuda.is_available()}')"
+# Test PyTorch + CUDA
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
 
-# Verificar dependências essenciais
-python -c "import transformers, pyannote.audio, librosa; print('Todas as dependências OK')"
+# Check essential dependencies
+python -c "import transformers, pyannote.audio, librosa; print('All dependencies OK')"
 ```
 
-<p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- USAGE EXAMPLES -->
-## Uso
+## Usage
 
-### Interface Web (Streamlit)
+### Web Interface (Streamlit)
 
-1. **Acesse** http://localhost:8501
-2. **Verifique** o status dos modelos no sidebar:
-   - ✅ Pyannote (GPU) - Diarização
-   - ✅ Whisper Large (GPU) - Transcrição local  
-   - ✅ AssemblyAI - Transcrição cloud
-3. **Upload** de arquivos de áudio/vídeo (MP3, WAV, MP4, etc.)
-4. **Configure** opções de processamento
-5. **Monitore** progresso em tempo real
+1. **Access** http://localhost:8501
+2. **Verify** model status in the sidebar:
+   - Pyannote (GPU) - Diarization
+   - Whisper Large (GPU) - Local transcription  
+   - AssemblyAI - Cloud transcription
+3. **Upload** audio/video files (MP3, WAV, MP4, etc.)
+4. **Configure** processing options
+5. **Monitor** real-time progress
 
-### Exemplos de Resultado
+### Output Examples
 
-**Com Diarização (GPU ~30s para 2min de áudio):**
+**With Diarization (GPU approximately 30s for 2min audio):**
 ```
-🎯 Arquivo: reuniao.mp3 (2.5 MB, 2:15min)
-⚡ Processamento: 28.3s total
+File: meeting.mp3 (2.5 MB, 2:15min)
+Processing: 28.3s total
 
-📊 Falantes detectados: 3
-🎤 SPEAKER_00 (0.0s - 15.2s): Bom dia pessoal, vamos começar nossa reunião de hoje...
-🎤 SPEAKER_01 (15.5s - 45.8s): Perfeito, tenho alguns pontos importantes para discutir...
-🎤 SPEAKER_02 (46.2s - 2:15.0s): Concordo completamente com essa abordagem...
-```
-
-**Sem Diarização (GPU ~15s):**
-```
-📝 Transcrição completa:
-Bom dia pessoal, vamos começar nossa reunião de hoje. Perfeito, tenho alguns pontos importantes para discutir. Concordo completamente com essa abordagem...
+Speakers detected: 3
+SPEAKER_00 (0.0s - 15.2s): Good morning everyone, let's start today's meeting...
+SPEAKER_01 (15.5s - 45.8s): Perfect, I have some important points to discuss...
+SPEAKER_02 (46.2s - 2:15.0s): I completely agree with this approach...
 ```
 
-### Performance Esperada
+**Without Diarization (GPU approximately 15s):**
+```
+Full transcription:
+Good morning everyone, let's start today's meeting. Perfect, I have some important points to discuss. I completely agree with this approach...
+```
 
-| Configuração | Whisper Large | Pyannote | Arquivo 2min |
+### Expected Performance
+
+| Configuration | Whisper Large | Pyannote | 2min File |
 |-------------|---------------|----------|--------------|
-| **RTX 3060** | ~8s | ~15s | **~25s total** |
-| **RTX 4090** | ~4s | ~8s | **~15s total** |
-| **CPU apenas** | ~120s | ~300s | **~7min total** |
+| **RTX 3060** | approximately 8s | approximately 15s | **approximately 25s total** |
+| **RTX 4090** | approximately 4s | approximately 8s | **approximately 15s total** |
+| **CPU only** | approximately 120s | approximately 300s | **approximately 7min total** |
 
-### API REST (Opcional)
+### REST API (Optional)
 
 ```bash
 # Health check
 curl http://localhost:2020/health
 
-# Upload e transcrição
+# Upload and transcription
 curl -X POST "http://localhost:2020/transcribe" \
   -F "file=@audio.mp3" \
   -F "enable_diarization=true"
 ```
 
-<p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- ROADMAP -->
 ## Roadmap
 
-### Concluído ✅
-- [x] **Arquitetura integrada** - Processo único na porta 2020
-- [x] **Otimização GPU completa** - CUDA, cuDNN, half-precision
-- [x] **Whisper Large GPU** - ~10x mais rápido que CPU
-- [x] **Pyannote GPU** - Diarização acelerada
-- [x] **Interface Streamlit** - Health checks e progresso
-- [x] **Scripts automatizados** - PowerShell para Windows
-- [x] **API REST FastAPI** - Endpoints documentados
-- [x] **Persistência SQLite** - Histórico de transcrições
-- [x] **Configuração .env** - GPU settings, API keys
-- [x] **Logging detalhado** - VRAM, timings, device info
+### Completed
+- [x] **Integrated architecture** - Single process on port 2020
+- [x] **Complete GPU optimization** - CUDA, cuDNN, half-precision
+- [x] **Whisper Large GPU** - approximately 10x faster than CPU
+- [x] **Pyannote GPU** - Accelerated diarization
+- [x] **Streamlit interface** - Health checks and progress
+- [x] **Automated scripts** - PowerShell for Windows
+- [x] **FastAPI REST API** - Documented endpoints
+- [x] **SQLite persistence** - Transcription history
+- [x] **.env configuration** - GPU settings, API keys
+- [x] **Detailed logging** - VRAM, timings, device info
 
-### Em Progresso 🔄
-- [ ] **Testes automatizados** - Cobertura completa
-- [ ] **Docker simplificado** - Single container
-- [ ] **Rate limiting** - Proteção da API
+### In Progress
+- [ ] **Automated tests** - Full coverage
+- [ ] **Simplified Docker** - Single container
+- [ ] **Rate limiting** - API protection
 
-### Planejado 📋
-- [ ] **Multi-GPU support** - Distribuição de carga
-- [ ] **Quantização INT8** - Menor uso de VRAM
-- [ ] **Streaming transcription** - Tempo real
-- [ ] **Whisper fine-tuning** - Português brasileiro
-- [ ] **Web interface** - React/Vue alternativa
-- [ ] **Batch processing** - Múltiplos arquivos
+### Planned
+- [ ] **Multi-GPU support** - Load distribution
+- [ ] **INT8 quantization** - Lower VRAM usage
+- [ ] **Streaming transcription** - Real-time
+- [ ] **Whisper fine-tuning** - Brazilian Portuguese
+- [ ] **Web interface** - React/Vue alternative
+- [ ] **Batch processing** - Multiple files
 - [ ] **Export formats** - SRT, VTT, JSON
-- [ ] **Real-time diarization** - Microfone ao vivo
+- [ ] **Real-time diarization** - Live microphone
 - [ ] **Cloud deployment** - AWS/GCP/Azure guides
 
-<p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- CONTRIBUTING -->
-## Contribuição
+## Contributing
 
-1. Fork do repositório
-2. `git checkout -b feature/NovaFuncionalidade`
-3. `git commit -m 'Adiciona NovaFuncionalidade'`
-4. `git push origin feature/NovaFuncionalidade`
-5. Abra um Pull Request
+1. Fork the repository
+2. `git checkout -b feature/AmazingFeature`
+3. `git commit -m 'Add AmazingFeature'`
+4. `git push origin feature/AmazingFeature`
+5. Open a Pull Request
 
-<p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- LICENSE -->
-## Licença
+## License
 
-Distribuído sob a licença MIT. Veja `LICENSE.txt` para mais informações.
+Distributed under the MIT License. See `LICENSE.txt` for more information.
 
-<p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- CONTACT -->
-## Contato
+## Contact
 
 André Coêlho - [Instagram](https://www.instagram.com/coelhoandrelucas/) - andrecoedev@gmail.com  
-Projeto: [https://github.com/Dec0XD/audio-transcription-microservices](https://github.com/Dec0XD/audio-transcription-microservices)
+Project: [https://github.com/Dec0XD/audio-transcription-microservices](https://github.com/Dec0XD/audio-transcription-microservices)
 
-<p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- ACKNOWLEDGMENTS -->
-## Agradecimentos
+## Acknowledgments
 
 - Streamlit
 - FastAPI
@@ -381,7 +381,7 @@ Projeto: [https://github.com/Dec0XD/audio-transcription-microservices](https://g
 - NVIDIA CUDA
 - FFmpeg
 
-<p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- MARKDOWN LINKS & IMAGES -->
 [contributors-shield]: https://img.shields.io/github/contributors/Dec0XD/audio-transcription-microservices.svg?style=for-the-badge
