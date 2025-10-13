@@ -91,14 +91,29 @@ def check_ffmpeg():
         return False
 
 def check_service_health(url, service_name):
-    """Verifica a saúde de um serviço"""
+    """Verifica a saúde do backend integrado"""
     try:
         response = requests.get(f"{url}/health", timeout=5)
         response.raise_for_status()
         data = response.json()
-        return True, f"{data.get('model', 'N/A')} ({data.get('device', 'N/A')})"
+        
+        # Verificar status dos modelos carregados
+        models = data.get('models', {})
+        status_parts = []
+        
+        if models.get('diarization', {}).get('loaded'):
+            status_parts.append(f"Diarização: {models['diarization'].get('device', 'OK')}")
+        
+        if models.get('whisper', {}).get('loaded'):
+            status_parts.append(f"Whisper: {models['whisper'].get('device', 'OK')}")
+        
+        if models.get('assemblyai', {}).get('loaded'):
+            status_parts.append(f"AssemblyAI: {models['assemblyai'].get('device', 'OK')}")
+        
+        status_info = " | ".join(status_parts) if status_parts else "Nenhum modelo carregado"
+        return True, status_info, models
     except requests.exceptions.RequestException as e:
-        return False, f"Erro: {str(e)}"
+        return False, f"Erro: {str(e)}", {}
 
 def convert_to_wav(input_path, output_path="audio.wav"):
     """Converte arquivo de áudio para WAV"""
@@ -116,9 +131,12 @@ def create_audio_waveform(audio_path):
         audio = AudioSegment.from_file(audio_path)
         samples = audio.get_array_of_samples()
         
-        # Reduzir amostragem para visualização
-        step = max(1, len(samples) // 1000)
-        samples_reduced = samples[::step]
+        # Converter array.array para lista Python (compatível com Plotly)
+        samples_list = list(samples)
+        
+        # Reduzir amostragem para visualização (máximo 1000 pontos)
+        step = max(1, len(samples_list) // 1000)
+        samples_reduced = samples_list[::step]
         
         # Criar timestamps
         duration = len(audio) / 1000.0
@@ -252,32 +270,51 @@ with st.sidebar:
 col1, col2 = st.columns([2, 1])
 
 with col1:
-    st.header("🔍 Status dos Serviços")
+    st.header("🔍 Status do Backend")
     
-    # Verificar status dos serviços
-    services = [
-        ("Whisper (Local)", "http://localhost:8000", "🤖"),
-        ("AssemblyAI (Cloud)", "http://localhost:8002", "☁️"),
-        ("Pyannote (Diarização)", "http://localhost:8001", "👥")
-    ]
+    # Verificar status do backend integrado (porta 2020)
+    backend_url = "http://localhost:2020"
+    is_available, status_info, models_status = check_service_health(backend_url, "Backend Integrado")
     
-    service_status = {}
+    status_class = "available" if is_available else "unavailable"
+    status_text = "Disponível" if is_available else "Indisponível"
+    status_color = "🟢" if is_available else "🔴"
     
-    for service_name, url, icon in services:
-        is_available, status_info = check_service_health(url, service_name)
-        service_status[service_name] = is_available
+    st.markdown(f"""
+    <div class="service-card {status_class}">
+        <h4>🧠 Backend Integrado (Porta 2020) {status_color}</h4>
+        <p><strong>Status:</strong> {status_text}</p>
+        <p><strong>Modelos:</strong> {status_info}</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Mostrar status individual dos modelos
+    if is_available and models_status:
+        col_a, col_b, col_c = st.columns(3)
         
-        status_class = "available" if is_available else "unavailable"
-        status_text = "Disponível" if is_available else "Indisponível"
-        status_color = "🟢" if is_available else "🔴"
+        with col_a:
+            diar_loaded = models_status.get('diarization', {}).get('loaded', False)
+            st.metric(
+                "🎯 Diarização",
+                "Ativo" if diar_loaded else "Inativo",
+                delta="Pyannote" if diar_loaded else None
+            )
         
-        st.markdown(f"""
-        <div class="service-card {status_class}">
-            <h4>{icon} {service_name} {status_color}</h4>
-            <p><strong>Status:</strong> {status_text}</p>
-            <p><strong>Detalhes:</strong> {status_info}</p>
-        </div>
-        """, unsafe_allow_html=True)
+        with col_b:
+            whisper_loaded = models_status.get('whisper', {}).get('loaded', False)
+            st.metric(
+                "🎙️ Whisper",
+                "Ativo" if whisper_loaded else "Inativo",
+                delta=models_status.get('whisper', {}).get('device', '') if whisper_loaded else None
+            )
+        
+        with col_c:
+            aai_loaded = models_status.get('assemblyai', {}).get('loaded', False)
+            st.metric(
+                "☁️ AssemblyAI",
+                "Ativo" if aai_loaded else "Inativo",
+                delta="Cloud" if aai_loaded else None
+            )
 
 with col2:
     st.header("📊 Estatísticas")
@@ -300,25 +337,29 @@ with col2:
         </div>
         """, unsafe_allow_html=True)
 
-# Verificar se pelo menos um serviço de transcrição está disponível
-transcription_services = ["Whisper (Local)", "AssemblyAI (Cloud)"]
-available_transcription = [s for s in transcription_services if service_status.get(s, False)]
+# Verificar disponibilidade do backend e modelos
+backend_available = is_available
+has_whisper = models_status.get('whisper', {}).get('loaded', False) if is_available else False
+has_assemblyai = models_status.get('assemblyai', {}).get('loaded', False) if is_available else False
+has_diarization = models_status.get('diarization', {}).get('loaded', False) if is_available else False
 
 # Área de upload
 st.header("📁 Upload de Arquivo")
 
-if not available_transcription:
-    st.warning("⚠️ Nenhum serviço de transcrição está disponível. Inicie pelo menos um dos serviços (Whisper ou AssemblyAI) para continuar.")
-    st.info("💡 **Como iniciar os serviços:**")
+if not backend_available:
+    st.error("⚠️ Backend não está disponível. Inicie o servidor na porta 2020.")
+    st.info("💡 **Como iniciar o backend:**")
     st.code("""
-# Para Whisper (local)
-python whisper_service.py
-
-# Para AssemblyAI (cloud)  
-python assemblyai_service.py
-
-# Para Pyannote (diarização)
-python pyannote_service.py
+cd modules/backend
+uvicorn src.main:app --host 0.0.0.0 --port 2020
+    """)
+elif not (has_whisper or has_assemblyai):
+    st.warning("⚠️ Nenhum modelo de transcrição carregado. Configure HF_TOKEN (Whisper) ou AAI_API_KEY (AssemblyAI) no arquivo .env")
+    st.info("💡 **Configuração necessária:**")
+    st.code("""
+# No arquivo modules/backend/.env
+HF_TOKEN=seu_token_huggingface
+AAI_API_KEY=sua_chave_assemblyai
     """)
 else:
     uploaded_file = st.file_uploader(
@@ -359,27 +400,38 @@ else:
 
     with col1:
         # Seleção do modelo
-        if len(available_transcription) > 1:
+        available_models = []
+        if has_whisper:
+            available_models.append("whisper")
+        if has_assemblyai:
+            available_models.append("assemblyai")
+        
+        if len(available_models) > 1:
             transcription_model = st.selectbox(
                 "Modelo de Transcrição",
-                available_transcription,
+                available_models,
+                format_func=lambda x: "🎙️ Whisper (Local)" if x == "whisper" else "☁️ AssemblyAI (Cloud)",
                 help="Whisper é mais rápido (local), AssemblyAI tem maior precisão (cloud)"
             )
-        elif len(available_transcription) == 1:
-            transcription_model = available_transcription[0]
-            st.info(f"Modelo selecionado: {transcription_model}")
+        elif len(available_models) == 1:
+            transcription_model = available_models[0]
+            model_name = "🎙️ Whisper (Local)" if transcription_model == "whisper" else "☁️ AssemblyAI (Cloud)"
+            st.info(f"Modelo selecionado: {model_name}")
         else:
             transcription_model = None
-            st.warning("Nenhum modelo disponível")
+            st.warning("Nenhum modelo de transcrição disponível")
 
     with col2:
         # Opção de diarização
         use_diarization = st.checkbox(
-            "Segmentação de Falantes",
-            value=service_status.get("Pyannote (Diarização)", False),
-            disabled=not service_status.get("Pyannote (Diarização)", False),
-            help="Identifica diferentes falantes no áudio (requer Pyannote)"
+            "🎯 Segmentação de Falantes",
+            value=has_diarization,
+            disabled=not has_diarization,
+            help="Identifica diferentes falantes no áudio (requer Pyannote com HF_TOKEN configurado)"
         )
+        
+        if not has_diarization:
+            st.caption("⚠️ Diarização indisponível - Configure HF_TOKEN")
 
     # Processamento
     if uploaded_file and transcription_model and st.button("🚀 Iniciar Transcrição", type="primary"):
@@ -401,195 +453,111 @@ else:
             
             # Converter para WAV
             audio_path, duration = convert_to_wav(temp_path)
-            
+
             if audio_path:
                 # Mostrar visualização do áudio
                 st.subheader("🌊 Visualização do Áudio")
                 waveform_fig = create_audio_waveform(audio_path)
                 if waveform_fig:
                     st.plotly_chart(waveform_fig, use_container_width=True)
-                
+
                 # Preparar dados para salvar no histórico
                 transcription_data = {
                     "filename": uploaded_file.name,
                     "duration": duration,
-                    "model": transcription_model,
+                    "model": "TranscriberCore",
                     "diarization": use_diarization,
                     "segments": []
                 }
-                
-                if use_diarization and service_status.get("Pyannote (Diarização)", False):
-                    st.info("🔄 Realizando diarização (pode levar alguns minutos)...")
-                    
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
-                    
-                    try:
-                        with open(audio_path, "rb") as f:
-                            status_text.text("Analisando falantes...")
-                            progress_bar.progress(25)
-                            
-                            diarization_response = requests.post(
-                                "http://localhost:8001/diarize",
-                                files={"file": f},
-                                timeout=600
-                            )
-                            diarization_response.raise_for_status()
-                        
-                        progress_bar.progress(50)
-                        result = diarization_response.json()
-                        segments = result["segments"]
-                        num_speakers = result["num_speakers"]
-                        
-                        st.success(f"✅ Detectados {num_speakers} falantes")
-                        
-                        # Escolher serviço de transcrição
-                        service_url = "http://localhost:8000" if transcription_model == "Whisper (Local)" else "http://localhost:8002"
-                        
-                        st.subheader("📝 Transcrições por Segmento")
-                        
-                        for i, segment in enumerate(segments):
-                            progress = 50 + (i + 1) * 50 / len(segments)
-                            progress_bar.progress(int(progress))
-                            status_text.text(f"Transcrevendo segmento {i+1}/{len(segments)}...")
-                            
-                            end_time = segment["end"] if segment["end"] is not None else duration
-                            
-                            try:
-                                with open(audio_path, "rb") as f:
-                                    transcription_response = requests.post(
-                                        f"{service_url}/transcribe_segment",
-                                        files={"file": (audio_path, f, "audio/wav")},
-                                        params={"start": segment["start"], "end": segment["end"]},
-                                        timeout=120
-                                    )
-                                    transcription_response.raise_for_status()
-                                
-                                transcription = transcription_response.json()["transcription"]
-                                
-                                # Adicionar ao histórico
-                                transcription_data["segments"].append({
-                                    "speaker": segment["speaker"],
-                                    "start": segment["start"],
-                                    "end": end_time,
-                                    "text": transcription
-                                })
-                                
-                                # Mostrar resultado
-                                st.markdown(f"""
-                                <div class="speaker-segment">
-                                    <h5>🗣️ Falante {segment['speaker']}</h5>
-                                    <p><strong>Tempo:</strong> {segment['start']:.1f}s - {end_time:.1f}s</p>
-                                    <p><strong>Transcrição:</strong> {transcription}</p>
-                                </div>
-                                """, unsafe_allow_html=True)
-                                
-                            except requests.exceptions.RequestException as e:
-                                st.error(f"Erro na transcrição do segmento {segment['speaker']}: {str(e)}")
-                        
-                        progress_bar.progress(100)
-                        status_text.text("Concluído!")
-                        
-                    except requests.exceptions.RequestException as e:
-                        st.warning(f"Erro na diarização: {str(e)}. Continuando sem segmentação.")
-                        use_diarization = False
-                
-                if not use_diarization:
-                    # Transcrição simples sem diarização
-                    service_url = "http://localhost:8000" if transcription_model == "Whisper (Local)" else "http://localhost:8002"
-                    
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
-                    
-                    try:
-                        status_text.text("Transcrevendo áudio...")
-                        progress_bar.progress(50)
-                        
-                        with open(audio_path, "rb") as f:
-                            transcription_response = requests.post(
-                                f"{service_url}/transcribe_segment",
-                                files={"file": f},
-                                timeout=120
-                            )
-                            transcription_response.raise_for_status()
-                        
-                        progress_bar.progress(100)
-                        transcription = transcription_response.json()["transcription"]
-                        
-                        # Adicionar ao histórico
-                        transcription_data["segments"].append({
-                            "speaker": "Único",
-                            "start": 0,
-                            "end": duration,
-                            "text": transcription
-                        })
-                        
-                        st.subheader("📝 Transcrição Completa")
-                        st.markdown(f"""
-                        <div class="result-card">
-                            <h4>Resultado da Transcrição</h4>
-                            <p>{transcription}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        status_text.text("Concluído!")
-                        
-                    except requests.exceptions.RequestException as e:
-                        st.error(f"Erro na transcrição: {str(e)}")
-                
+
+                # Enviar para o backend unificado (/transcribe)
+                backend_url = "http://localhost:2020/transcribe"
+                try:
+                    with open(audio_path, "rb") as f:
+                        files = {"file": (uploaded_file.name, f, "audio/mpeg")}
+                        data = {"use_diarization": str(use_diarization).lower()}
+                        resp = requests.post(backend_url, files=files, data=data, timeout=600)
+                        resp.raise_for_status()
+                        result = resp.json()
+
+                    # Preencher transcription_data com o resultado
+                    transcription_data["segments"] = result.get("segments", [])
+                    transcription_data["diarization"] = result.get("diarization")
+
+                    # Mostrar resultados na UI
+                    if transcription_data["segments"]:
+                        st.subheader("📝 Transcrição")
+                        for seg in transcription_data["segments"]:
+                            st.markdown(f"""
+                            <div class="speaker-segment">
+                                <h5>� Falante {seg.get('speaker', 'N/A')}</h5>
+                                <p><strong>Tempo:</strong> {seg.get('start', 0):.1f}s - {seg.get('end', 0) if seg.get('end') else duration:.1f}s</p>
+                                <p><strong>Transcrição:</strong> {seg.get('text','')}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.warning("Nenhum segmento retornado pelo backend.")
+
+                except requests.exceptions.RequestException as e:
+                    st.error(f"Erro ao chamar backend TranscriberCore: {e}")
+
                 # Salvar no histórico
                 save_transcription_history(uploaded_file.name, transcription_data)
-                
+
                 # Estatísticas finais
-                processing_time = time.time() - start_time
-                word_count = sum(len(seg["text"].split()) for seg in transcription_data["segments"])
+                processing_time = transcription_data.get("processing_time", time.time() - start_time)
+                word_count = transcription_data.get("word_count", 0)
                 
+                st.markdown("---")
+                st.subheader("📊 Estatísticas Finais")
+
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
-                    st.metric("Duração do Áudio", f"{duration:.1f}s")
+                    st.metric("⏱️ Duração do Áudio", f"{duration:.1f}s")
                 with col2:
-                    st.metric("Tempo de Processamento", f"{processing_time:.1f}s")
+                    st.metric("⚡ Tempo de Processamento", f"{processing_time:.1f}s")
                 with col3:
-                    st.metric("Palavras Transcritas", word_count)
+                    st.metric("📝 Palavras Transcritas", word_count)
                 with col4:
-                    st.metric("Falantes", len(set(seg["speaker"] for seg in transcription_data["segments"])))
-                
+                    num_speakers = transcription_data.get("num_speakers", 1)
+                    st.metric("🗣️ Falantes", num_speakers)
+
                 # Opções de download
                 st.subheader("💾 Download dos Resultados")
-                
+
                 col1, col2, col3 = st.columns(3)
-                
+
                 with col1:
                     # Download como texto
                     text_content = "\n\n".join([
-                        f"Falante {seg['speaker']} ({seg['start']:.1f}s - {seg['end']:.1f}s):\n{seg['text']}"
+                        f"Falante {seg.get('speaker')} ({seg.get('start',0):.1f}s - {seg.get('end',0):.1f}s):\n{seg.get('text','')}"
                         for seg in transcription_data["segments"]
                     ])
                     st.markdown(
                         create_download_link(text_content, f"{uploaded_file.name}_transcricao.txt"),
                         unsafe_allow_html=True
                     )
-                
+
                 with col2:
                     # Download como JSON
                     st.markdown(
                         create_download_link(transcription_data, f"{uploaded_file.name}_transcricao.json", "json"),
                         unsafe_allow_html=True
                     )
-                
+
                 with col3:
                     # Download como SRT (legendas)
                     srt_content = ""
                     for i, seg in enumerate(transcription_data["segments"], 1):
-                        start_time = f"{int(seg['start']//3600):02d}:{int((seg['start']%3600)//60):02d}:{seg['start']%60:06.3f}".replace('.', ',')
-                        end_time = f"{int(seg['end']//3600):02d}:{int((seg['end']%3600)//60):02d}:{seg['end']%60:06.3f}".replace('.', ',')
-                        srt_content += f"{i}\n{start_time} --> {end_time}\n{seg['text']}\n\n"
-                    
+                        start_time = f"{int(seg.get('start',0)//3600):02d}:{int((seg.get('start',0)%3600)//60):02d}:{seg.get('start',0)%60:06.3f}".replace('.', ',')
+                        end_time = f"{int((seg.get('end',0) or duration)//3600):02d}:{int(((seg.get('end',0) or duration)%3600)//60):02d}:{(seg.get('end',0) or duration)%60:06.3f}".replace('.', ',')
+                        srt_content += f"{i}\n{start_time} --> {end_time}\n{seg.get('text','')}\n\n"
+
                     st.markdown(
                         create_download_link(srt_content, f"{uploaded_file.name}_legendas.srt"),
                         unsafe_allow_html=True
                     )
-                
+
                 # Limpar arquivos temporários
                 if os.path.exists(temp_path):
                     os.remove(temp_path)

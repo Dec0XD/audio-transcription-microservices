@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: modules/backend/Dockerfile
+    container_name: transcription-app
+    ports:
+      - "2020:2020"
+      - "8000:8000"
+      - "8001:8001"
+      - "8002:8002"
+    env_file:
+      - .env
+    volumes:
+      - ./database:/app/database
+      - ../diarization_service:/app/diarization_service:ro
+      - ../transcription_service:/app/transcription_service:ro
+      - ../frontend:/app/frontend:ro
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    container_name: transcription-db
+    environment:
+      POSTGRES_DB: transcription_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

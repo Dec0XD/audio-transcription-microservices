@@ -60,6 +60,34 @@
 
 Esta aplicação permite aos usuários fazer upload de arquivos de áudio ou vídeo, convertê-los para o formato .wav, transcrevê-los usando o modelo Whisper da OpenAI ou AssemblyAI, e, opcionalmente, segmentar os falantes com o Pyannote. Construída com uma arquitetura de microserviços, ela separa a lógica de transcrição e diarização em serviços distintos, utilizando FastAPI para os endpoints e Streamlit para uma interface de usuário intuitiva. O projeto é executado localmente em Python, com suporte otimizado para GPUs NVIDIA (ex.: RTX 3060), aproveitando CUDA para acelerar o processamento. Para usuários de CPU, a diarização pode ser mais lenta, mas o sistema inclui notificações para gerenciar expectativas de tempo.
 
+### 🆕 Nova Arquitetura de Microsserviços
+
+O projeto agora inclui uma **arquitetura completa de microsserviços** localizada em `modules/backend/`:
+
+```
+modules/backend/
+├── src/
+│   ├── main.py              # API Gateway Principal
+│   ├── config.py            # Configurações
+│   ├── models.py            # Modelos de dados
+│   ├── security.py          # Autenticação JWT
+│   └── services/            # Serviços de negócio
+│       ├── diarization.py
+│       ├── transcription.py
+│       └── orchestrator.py
+├── database/                # Persistência
+├── docker-compose.yml       # Orquestração
+└── tests/                   # Testes automatizados
+```
+
+**Benefícios:**
+- ✅ **API REST Completa** - Endpoints documentados com Swagger
+- ✅ **Banco de Dados** - Histórico persistente de transcrições
+- ✅ **Docker Ready** - Deploy simplificado
+- ✅ **Autenticação** - Segurança com JWT
+- ✅ **Escalável** - Serviços independentes
+- ✅ **Monitoramento** - Health checks e logs estruturados
+
 ### Principais Recursos
 
 - **Transcrição Automática**: Suporte a Whisper (local) e AssemblyAI (cloud) com seleção de modelo.
@@ -80,6 +108,48 @@ Esta aplicação permite aos usuários fazer upload de arquivos de áudio ou ví
 - PyTorch com CUDA
 - pydub e FFmpeg
 - librosa
+- SQLAlchemy (Nova arquitetura)
+- Docker & Docker Compose (Nova arquitetura)
+- Pydantic (Nova arquitetura)
+
+### 🏗️ Arquitetura de Microsserviços
+
+```
+┌─────────────┐
+│  Frontend   │ Streamlit (Port 8501)
+└──────┬──────┘
+       │ HTTP REST
+       ▼
+┌──────────────────────────────┐
+│  Backend API Gateway         │ FastAPI (Port 2020)
+│  • Orquestração de serviços │
+│  • Autenticação JWT          │
+│  • Persistência (SQL)        │
+│  • Documentação Swagger      │
+└─────┬────────┬──────┬────────┘
+      │        │      │
+      ▼        ▼      ▼
+┌──────────┐ ┌────────┐ ┌─────────────┐
+│Pyannote  │ │Whisper │ │ AssemblyAI  │
+│Diarization│ │Local   │ │   Cloud     │
+│Port 8001 │ │Port 8000│ │ Port 8002   │
+└──────────┘ └────────┘ └─────────────┘
+      │
+      ▼
+┌────────────────┐
+│   Database     │
+│ PostgreSQL/    │
+│   SQLite       │
+└────────────────┘
+```
+
+**Fluxo de Dados:**
+1. Frontend → Backend: Upload de arquivo
+2. Backend: Validação e conversão para WAV
+3. Backend → Diarization: Identificação de falantes (opcional)
+4. Backend → Whisper/AssemblyAI: Transcrição por segmento
+5. Backend: Agregação de resultados e persistência
+6. Backend → Frontend: Resposta com transcrição completa
 
 <p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
 
@@ -96,6 +166,44 @@ Esta aplicação permite aos usuários fazer upload de arquivos de áudio ou ví
 - Driver NVIDIA atualizado
 
 ### Instalação
+
+#### Opção 1: Nova Arquitetura de Microsserviços (Recomendado) 🆕
+
+A nova arquitetura organiza o projeto em microsserviços independentes com uma API REST completa.
+
+**Usando Docker (Mais Fácil):**
+```bash
+git clone https://github.com/Dec0XD/audio-transcription-microservices.git
+cd audio-transcription-microservices/modules/backend
+
+# Configurar variáveis de ambiente
+cp .env.example .env
+# Edite o arquivo .env com suas API keys
+
+# Iniciar todos os serviços com Docker
+docker-compose up --build
+```
+
+**Instalação Local:**
+```bash
+git clone https://github.com/Dec0XD/audio-transcription-microservices.git
+cd audio-transcription-microservices/modules/backend
+
+# Windows
+.\start_services.ps1
+
+# Linux/Mac
+chmod +x start_services.sh
+./start_services.sh
+```
+
+📖 **Documentação Completa da Nova Arquitetura:**
+- [Backend README](modules/backend/README.md) - Documentação completa
+- [Guia de Instalação](modules/backend/INSTALL.md) - Instruções detalhadas
+- [Arquitetura](modules/backend/ARCHITECTURE.md) - Documentação técnica
+
+#### Opção 2: Instalação Original (Legacy)
+
 ```bash
 git clone https://github.com/Dec0XD/audio-transcription-microservices.git
 cd audio-transcription-microservices
@@ -155,14 +263,33 @@ Transcrição: O João pensou no botão, foi? Sim, ele pensou sim.
 <!-- ROADMAP -->
 ## Roadmap
 
+### Concluído ✅
 - [x] Implementar transcrição com Whisper
 - [x] Adicionar suporte a AssemblyAI
 - [x] Implementar segmentação de falantes
 - [x] Suporte a GPU
+- [x] **Arquitetura de microsserviços**
+- [x] **API REST completa com FastAPI**
+- [x] **Banco de dados para histórico**
+- [x] **Docker e Docker Compose**
+- [x] **Autenticação JWT**
+- [x] **Documentação Swagger/ReDoc**
+
+### Em Progresso 🔄
+- [ ] Sistema de usuários completo
+- [ ] Rate limiting
+- [ ] Cache com Redis
+
+### Planejado 📋
 - [ ] Suporte a .ogg, .flac
-- [ ] Exportar transcrição
-- [ ] Suporte a múltiplos idiomas
-- [ ] Exibir progresso na interface
+- [ ] Exportar transcrição em múltiplos formatos
+- [ ] Suporte a múltiplos idiomas na interface
+- [ ] Exibir progresso em tempo real na interface
+- [ ] Message queue (RabbitMQ/Kafka)
+- [ ] Webhooks para notificações
+- [ ] Kubernetes deployment
+- [ ] CI/CD pipeline
+- [ ] Auto-scaling
 
 <p align="right">(<a href="#readme-top">voltar ao topo</a>)</p>
 
