@@ -78,7 +78,26 @@ export const audioService = {
     const { data } = await api.post('/api-keys', {
       hf_token: keys.hfToken || null,
       aai_api_key: keys.aaiApiKey || null,
+      gemini_api_key: keys.geminiApiKey || null,
     })
+    return data
+  },
+
+  // Gerar ata de reunião
+  async generateMeetingMinutes(transcriptionId, meetingData) {
+    const { data } = await api.post('/meeting-minutes/generate', {
+      transcription_id: transcriptionId,
+      title: meetingData.title,
+      date: meetingData.date,
+      participants: meetingData.participants,
+      meeting_context: meetingData.context,
+    })
+    return data
+  },
+
+  // Verificar status do gerador de atas
+  async getMeetingMinutesStatus() {
+    const { data } = await api.get('/meeting-minutes/status')
     return data
   },
 }

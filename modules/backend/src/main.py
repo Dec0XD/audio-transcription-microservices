@@ -16,6 +16,7 @@ from .models import Base, Transcription
 from .security import get_current_user, TokenData
 from .services.diarization_engine import DiarizationEngine
 from .services.transcription_engine import WhisperEngine, AssemblyAIEngine
+from .services.meeting_minutes import MeetingMinutesGenerator
 from .utils.gpu_utils import log_device_info, optimize_gpu_settings
 from .api_keys_manager import api_keys_manager
 
@@ -60,16 +61,24 @@ os.makedirs("temp", exist_ok=True)
 diarization_engine: Optional[DiarizationEngine] = None
 whisper_engine: Optional[WhisperEngine] = None
 assemblyai_engine: Optional[AssemblyAIEngine] = None
+meeting_minutes_generator: Optional[MeetingMinutesGenerator] = None
 
 # ========== PYDANTIC MODELS ==========
 class ApiKeysUpdate(BaseModel):
     hf_token: Optional[str] = None
     aai_api_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None
+
+class MeetingMinutesRequest(BaseModel):
+    transcription_id: int
+    title: Optional[str] = None
+    date: Optional[str] = None
+    participants: Optional[List[str]] = None
 
 @app.on_event("startup")
 async def load_models():
     """Carrega todos os modelos ML no startup da aplicação."""
-    global diarization_engine, whisper_engine, assemblyai_engine
+    global diarization_engine, whisper_engine, assemblyai_engine, meeting_minutes_generator
     
     logger.info("=" * 60)
     logger.info("INICIANDO CARREGAMENTO DOS MODELOS")
@@ -86,6 +95,11 @@ async def load_models():
         settings.AAI_API_KEY = saved_keys["AAI_API_KEY"]
         os.environ["AAI_API_KEY"] = saved_keys["AAI_API_KEY"]
         logger.info("🔑 AAI_API_KEY carregado do armazenamento persistente")
+    
+    if saved_keys.get("GEMINI_API_KEY"):
+        settings.GEMINI_API_KEY = saved_keys.get("GEMINI_API_KEY", "")
+        os.environ["GEMINI_API_KEY"] = saved_keys["GEMINI_API_KEY"]
+        logger.info("🔑 GEMINI_API_KEY carregado do armazenamento persistente")
     
     # Log de informações do dispositivo
     log_device_info()
@@ -128,6 +142,18 @@ async def load_models():
             logger.warning("⚠️  Transcrição AssemblyAI não estará disponível")
     else:
         logger.warning("⚠️  AAI_API_KEY não configurado - AssemblyAI não será carregado")
+    
+    # Configurar Gemini (Geração de Atas)
+    if settings.GEMINI_API_KEY:
+        try:
+            logger.info("🎯 Configurando Gemini para geração de atas...")
+            meeting_minutes_generator = MeetingMinutesGenerator(settings.GEMINI_API_KEY)
+            logger.info("✅ Gemini configurado!")
+        except Exception as e:
+            logger.error(f"❌ Erro ao configurar Gemini: {e}")
+            logger.warning("⚠️  Geração de atas não estará disponível")
+    else:
+        logger.warning("⚠️  GEMINI_API_KEY não configurado - Geração de atas não será carregado")
     
     logger.info("=" * 60)
     logger.info("MODELOS CARREGADOS - API PRONTA!")
@@ -552,6 +578,8 @@ async def update_api_keys(
             keys_to_save["HF_TOKEN"] = keys.hf_token
         if keys.aai_api_key:
             keys_to_save["AAI_API_KEY"] = keys.aai_api_key
+        if keys.gemini_api_key:
+            keys_to_save["GEMINI_API_KEY"] = keys.gemini_api_key
         
         if keys_to_save:
             api_keys_manager.set_multiple(keys_to_save)
@@ -626,6 +654,30 @@ async def update_api_keys(
                 if old_aai_key:
                     os.environ["AAI_API_KEY"] = old_aai_key
         
+        # Atualizar GEMINI_API_KEY
+        if keys.gemini_api_key:
+            old_gemini_key = settings.GEMINI_API_KEY
+            settings.GEMINI_API_KEY = keys.gemini_api_key
+            os.environ["GEMINI_API_KEY"] = keys.gemini_api_key
+            
+            # Recarregar Gemini
+            try:
+                logger.info("🔄 Reconfigurando Gemini...")
+                meeting_minutes_generator = MeetingMinutesGenerator(keys.gemini_api_key)
+                updated_models.append({
+                    "model": "gemini",
+                    "status": "configured",
+                    "device": "cloud"
+                })
+                logger.info("✅ Gemini reconfigurado!")
+            except Exception as e:
+                error_msg = str(e)
+                if "401" in error_msg or "Unauthorized" in error_msg or "API_KEY_INVALID" in error_msg:
+                    error_msg = "API Key inválida. Obtenha uma em: https://makersuite.google.com/app/apikey"
+                logger.error(f"❌ Erro ao reconfigurar Gemini: {error_msg}")
+                errors.append(f"Gemini: {error_msg}")
+                meeting_minutes_generator = None
+        
         logger.info("=" * 60)
         logger.info("ATUALIZAÇÃO CONCLUÍDA")
         logger.info("=" * 60)
@@ -647,6 +699,10 @@ async def update_api_keys(
                 "assemblyai": {
                     "loaded": assemblyai_engine is not None,
                     "device": assemblyai_engine.get_device() if assemblyai_engine else "not loaded"
+                },
+                "gemini": {
+                    "loaded": meeting_minutes_generator is not None,
+                    "device": "cloud" if meeting_minutes_generator else "not loaded"
                 }
             }
         }
@@ -811,6 +867,101 @@ async def assemblyai_transcribe_segment_endpoint(
                 os.remove(temp_path)
             except Exception as e:
                 logger.warning(f"Could not remove temp file {temp_path}: {e}")
+
+
+# ========== ENDPOINTS DE ATA DE REUNIÃO ==========
+
+@app.post("/meeting-minutes/generate")
+async def generate_meeting_minutes(
+    request: MeetingMinutesRequest,
+    db: Session = Depends(get_db),
+    current_user: Optional[TokenData] = Depends(get_current_user)
+):
+    """
+    Gera ata de reunião a partir de uma transcrição existente.
+    
+    Args:
+        request: Dados da requisição (transcription_id, título, data, participantes)
+        
+    Returns:
+        Ata estruturada com resumo, to-do list, decisões, etc.
+    """
+    if not meeting_minutes_generator:
+        raise HTTPException(
+            status_code=503,
+            detail="Meeting minutes generator not configured. Check GEMINI_API_KEY configuration."
+        )
+    
+    try:
+        # Buscar transcrição
+        transcription = db.query(Transcription).filter(
+            Transcription.id == request.transcription_id
+        ).first()
+        
+        if not transcription:
+            raise HTTPException(status_code=404, detail="Transcription not found")
+        
+        if transcription.status != "completed":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Transcription status is '{transcription.status}'. Only completed transcriptions can be used."
+            )
+        
+        # Montar texto da transcrição
+        segments_text = []
+        for seg in transcription.segments:
+            speaker = seg.get("speaker", "SPEAKER")
+            text = seg.get("text", "")
+            segments_text.append(f"{speaker}: {text}")
+        
+        full_transcription = "\n".join(segments_text)
+        
+        # Preparar contexto
+        context = {}
+        if request.title:
+            context["title"] = request.title
+        if request.date:
+            context["date"] = request.date
+        if request.participants:
+            context["participants"] = request.participants
+        
+        # Gerar ata
+        logger.info(f"Gerando ata para transcrição {request.transcription_id}...")
+        minutes = meeting_minutes_generator.generate_minutes(
+            transcription=full_transcription,
+            meeting_context=context
+        )
+        
+        logger.info("Ata gerada com sucesso!")
+        
+        return {
+            "transcription_id": request.transcription_id,
+            "meeting_info": {
+                "title": request.title,
+                "date": request.date,
+                "participants": request.participants,
+                "duration": transcription.duration_seconds,
+                "word_count": transcription.word_count
+            },
+            "minutes": minutes
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating meeting minutes: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/meeting-minutes/status")
+async def get_meeting_minutes_status(
+    current_user: Optional[TokenData] = Depends(get_current_user)
+):
+    """Retorna status do gerador de atas."""
+    return {
+        "available": meeting_minutes_generator is not None,
+        "config": meeting_minutes_generator.get_config_status() if meeting_minutes_generator else None
+    }
 
 
 if __name__ == "__main__":

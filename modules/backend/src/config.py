@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     # API Keys
     HF_TOKEN: Optional[str] = Field(default=None, description="Hugging Face API Token")
     AAI_API_KEY: Optional[str] = Field(default=None, description="AssemblyAI API Key")
+    GEMINI_API_KEY: Optional[str] = Field(default=None, description="Google Gemini API Key")
     
     # Database
     DATABASE_URL: str = Field(

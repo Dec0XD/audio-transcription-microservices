@@ -6,13 +6,15 @@ import {
   Settings,
   Activity,
   Users,
-  TrendingUp
+  TrendingUp,
+  Sparkles
 } from 'lucide-react'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Nova Transcrição', href: '/new-transcription', icon: PlusCircle },
   { name: 'Transcrições', href: '/transcriptions', icon: FileAudio },
+  { name: 'Atas de Reunião', href: '/meeting-minutes', icon: Sparkles },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ]
 

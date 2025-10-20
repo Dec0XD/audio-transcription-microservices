@@ -17,10 +17,12 @@ export default function Settings() {
   const [apiKeys, setApiKeys] = useState({
     hfToken: '',
     aaiApiKey: '',
+    geminiApiKey: '',
   })
   const [showKeys, setShowKeys] = useState({
     hfToken: false,
     aaiApiKey: false,
+    geminiApiKey: false,
   })
   const [loading, setLoading] = useState(false)
   const [savingKeys, setSavingKeys] = useState(false)
@@ -59,7 +61,7 @@ export default function Settings() {
       setSavingKeys(true)
       
       // Validar se pelo menos uma chave foi preenchida
-      if (!apiKeys.hfToken && !apiKeys.aaiApiKey) {
+      if (!apiKeys.hfToken && !apiKeys.aaiApiKey && !apiKeys.geminiApiKey) {
         toast.error('Preencha pelo menos uma chave de API')
         return
       }
@@ -235,6 +237,11 @@ export default function Settings() {
                 loaded={health.models?.assemblyai?.loaded}
                 device={health.models?.assemblyai?.device}
               />
+              <ModelStatus
+                name="Gemini (Geração de Atas)"
+                loaded={health.models?.gemini?.loaded}
+                device={health.models?.gemini?.device}
+              />
             </>
           ) : (
             <p className="text-gray-500">Carregando status...</p>
@@ -326,6 +333,33 @@ export default function Settings() {
             </p>
           </div>
 
+          {/* Gemini API Key */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              ✨ Google Gemini API Key
+              <span className="text-xs text-gray-500 ml-2">(Para geração de atas de reunião)</span>
+            </label>
+            <div className="relative">
+              <input
+                type={showKeys.geminiApiKey ? 'text' : 'password'}
+                value={apiKeys.geminiApiKey}
+                onChange={(e) => setApiKeys({ ...apiKeys, geminiApiKey: e.target.value })}
+                className="input pr-10"
+                placeholder="AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+              />
+              <button
+                type="button"
+                onClick={() => toggleKeyVisibility('geminiApiKey')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showKeys.geminiApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Obtenha em: <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">https://makersuite.google.com/app/apikey</a>
+            </p>
+          </div>
+
           {/* Instruções */}
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <h4 className="text-sm font-semibold text-green-900 mb-2">✨ Funcionalidade Automática:</h4>
@@ -340,7 +374,7 @@ export default function Settings() {
           <Button
             onClick={handleSaveApiKeys}
             loading={savingKeys}
-            disabled={!apiKeys.hfToken && !apiKeys.aaiApiKey}
+            disabled={!apiKeys.hfToken && !apiKeys.aaiApiKey && !apiKeys.geminiApiKey}
             icon={Save}
             className="w-full"
           >
@@ -375,6 +409,10 @@ export default function Settings() {
           <LinkRow
             label="AssemblyAI - Criar Conta"
             url="https://www.assemblyai.com/dashboard/signup"
+          />
+          <LinkRow
+            label="Google Gemini - Obter API Key"
+            url="https://makersuite.google.com/app/apikey"
           />
           <LinkRow
             label="Pyannote - Aceitar Termos de Uso"

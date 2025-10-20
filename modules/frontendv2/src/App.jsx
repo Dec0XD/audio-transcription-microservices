@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard'
 import Transcriptions from './pages/Transcriptions'
 import TranscriptionDetail from './pages/TranscriptionDetail'
 import NewTranscription from './pages/NewTranscription'
+import MeetingMinutes from './pages/MeetingMinutes'
 import Settings from './pages/Settings'
 import { useAuthStore } from './stores/authStore'
 
@@ -44,6 +45,7 @@ function App() {
           <Route path="transcriptions" element={<Transcriptions />} />
           <Route path="transcriptions/:id" element={<TranscriptionDetail />} />
           <Route path="new-transcription" element={<NewTranscription />} />
+          <Route path="meeting-minutes" element={<MeetingMinutes />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
