@@ -1,7 +1,3 @@
-"""
-Utilitários para verificação e configuração de GPU/CUDA.
-"""
-
 import logging
 import torch
 from typing import Dict, Any

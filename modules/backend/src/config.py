@@ -1,7 +1,3 @@
-"""
-Configurações da aplicação usando Pydantic Settings.
-"""
-
 from pydantic_settings import BaseSettings
 from pydantic import Field
 from typing import Optional

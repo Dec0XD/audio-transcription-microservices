@@ -1,7 +1,3 @@
-"""
-Modelos de dados usando SQLAlchemy.
-"""
-
 from sqlalchemy import Column, Integer, String, Text, Float, DateTime, Boolean, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func

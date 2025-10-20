@@ -1,7 +1,3 @@
-"""
-API principal do sistema de transcrição - TODOS OS SERVIÇOS INTEGRADOS.
-"""
-
 import logging
 import os
 import time
@@ -28,7 +24,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Criar aplicação FastAPI
 app = FastAPI(
     title="Transcription API - All Services Integrated",
     description="API de transcrição de áudio com diarização de falantes (Whisper, AssemblyAI, Pyannote) - Tudo em um processo no port 2020",
