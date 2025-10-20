@@ -26,7 +26,8 @@ class MeetingMinutesGenerator:
         """Configura o cliente Gemini."""
         try:
             genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-pro')
+            # Usar gemini-1.5-flash que é o modelo disponível atualmente
+            self.model = genai.GenerativeModel('gemini-2.5-flash')
             logger.info("✅ Gemini configurado para geração de atas")
         except Exception as e:
             logger.error(f"❌ Erro ao configurar Gemini: {e}")
@@ -138,11 +139,11 @@ Por favor, analise a transcrição acima e gere uma ata de reunião completa e e
             return {
                 "full_text": ata_text,
                 "summary": self._extract_section(ata_text, "RESUMO EXECUTIVO"),
-                "objectives": self._extract_section(ata_text, "OBJETIVOS DA REUNIÃO"),
-                "topics": self._extract_section(ata_text, "PRINCIPAIS TÓPICOS DISCUTIDOS"),
+                "objectives": self._extract_list(ata_text, "OBJETIVOS DA REUNIÃO"),
+                "topics": self._extract_list(ata_text, "PRINCIPAIS TÓPICOS DISCUTIDOS"),
                 "decisions": decisions,
                 "todo_list": todo_items,
-                "next_steps": self._extract_section(ata_text, "PRÓXIMOS PASSOS"),
+                "next_steps": self._extract_list(ata_text, "PRÓXIMOS PASSOS"),
                 "notes": self._extract_section(ata_text, "OBSERVAÇÕES E NOTAS"),
             }
         
@@ -151,7 +152,7 @@ Por favor, analise a transcrição acima e gere uma ata de reunião completa e e
             raise
     
     def _extract_section(self, text: str, section_title: str) -> str:
-        """Extrai uma seção específica da ata."""
+        """Extrai uma seção específica da ata como texto."""
         try:
             # Procurar pelo título da seção
             lines = text.split("\n")
@@ -176,6 +177,32 @@ Por favor, analise a transcrição acima e gere uma ata de reunião completa e e
         
         except Exception:
             return ""
+    
+    def _extract_list(self, text: str, section_title: str) -> List[str]:
+        """Extrai uma seção específica da ata como lista."""
+        try:
+            section_text = self._extract_section(text, section_title)
+            if not section_text:
+                return []
+            
+            items = []
+            lines = section_text.split("\n")
+            
+            for line in lines:
+                line = line.strip()
+                # Remover marcadores de lista
+                if line.startswith("-"):
+                    clean_line = line.lstrip("- ").strip()
+                    if clean_line and not clean_line.startswith("#"):
+                        items.append(clean_line)
+                elif line and not line.startswith("#"):
+                    # Linhas sem marcador mas com conteúdo
+                    items.append(line)
+            
+            return items
+        
+        except Exception:
+            return []
     
     def _extract_todo_items(self, text: str) -> List[Dict]:
         """Extrai itens de to-do list estruturados."""
@@ -210,10 +237,9 @@ Por favor, analise a transcrição acima e gere uma ata de reunião completa e e
                         deadline = desc_parts[1].strip()
                     
                     items.append({
-                        "description": description,
+                        "task": description,
                         "responsible": responsible,
-                        "deadline": deadline,
-                        "completed": False
+                        "deadline": deadline
                     })
             
             return items
@@ -221,7 +247,7 @@ Por favor, analise a transcrição acima e gere uma ata de reunião completa e e
         except Exception:
             return []
     
-    def _extract_decisions(self, text: str) -> List[str]:
+    def _extract_decisions(self, text: str) -> List[Dict]:
         """Extrai lista de decisões."""
         try:
             decisions_section = self._extract_section(text, "DECISÕES TOMADAS")
@@ -237,7 +263,20 @@ Por favor, analise a transcrição acima e gere uma ata de reunião completa e e
                     # Remover numeração ou bullet
                     clean_line = line.lstrip("0123456789.-) ").strip()
                     if clean_line:
-                        decisions.append(clean_line)
+                        # Tentar extrair responsável se mencionado
+                        responsible = None
+                        decision_text = clean_line
+                        
+                        # Padrão: texto (Responsável: Nome) ou - Responsável: Nome
+                        if "Responsável:" in clean_line:
+                            parts = clean_line.split("Responsável:")
+                            decision_text = parts[0].strip()
+                            responsible = parts[1].strip().rstrip(")")
+                        
+                        decisions.append({
+                            "decision": decision_text,
+                            "responsible": responsible
+                        })
             
             return decisions
         
@@ -248,5 +287,5 @@ Por favor, analise a transcrição acima e gere uma ata de reunião completa e e
         """Retorna status da configuração."""
         return {
             "configured": bool(self.api_key),
-            "model": "gemini-pro"
+            "model": "gemini-2.5-flash"
         }
