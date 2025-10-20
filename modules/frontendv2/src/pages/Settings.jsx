@@ -27,7 +27,18 @@ export default function Settings() {
 
   useEffect(() => {
     checkSystemHealth()
+    loadApiKeysStatus()
   }, [])
+
+  const loadApiKeysStatus = async () => {
+    try {
+      const status = await audioService.getApiKeysStatus()
+      // Apenas mostrar se estão configuradas (sem expor valores)
+      console.log('API Keys Status:', status)
+    } catch (error) {
+      console.error('Erro ao carregar status das API Keys:', error)
+    }
+  }
 
   const checkSystemHealth = async () => {
     try {
@@ -48,23 +59,48 @@ export default function Settings() {
     try {
       setSavingKeys(true)
       
-      // Salvar no localStorage (em produção, isso deveria ir para o backend)
-      if (apiKeys.hfToken) {
-        localStorage.setItem('HF_TOKEN', apiKeys.hfToken)
-      }
-      if (apiKeys.aaiApiKey) {
-        localStorage.setItem('AAI_API_KEY', apiKeys.aaiApiKey)
+      // Validar se pelo menos uma chave foi preenchida
+      if (!apiKeys.hfToken && !apiKeys.aaiApiKey) {
+        toast.error('Preencha pelo menos uma chave de API')
+        return
       }
       
-      toast.success('Chaves de API salvas! Reinicie o backend para aplicar as mudanças.')
+      // Enviar para o backend
+      const result = await audioService.updateApiKeys(apiKeys)
       
-      // Mostrar instruções
-      toast('Para aplicar: Adicione as chaves no arquivo .env do backend e reinicie', {
-        duration: 8000,
-        icon: 'ℹ️',
-      })
+      if (result.success) {
+        toast.success('🎉 Chaves atualizadas e modelos recarregados!', {
+          duration: 5000,
+        })
+        
+        // Mostrar modelos atualizados
+        if (result.updated_models && result.updated_models.length > 0) {
+          const modelsMsg = result.updated_models
+            .map(m => `✅ ${m.model}: ${m.device}`)
+            .join('\n')
+          
+          toast.success(modelsMsg, {
+            duration: 6000,
+            style: {
+              whiteSpace: 'pre-line',
+            }
+          })
+        }
+        
+        // Atualizar status do sistema
+        await checkSystemHealth()
+        
+        // Limpar campos
+        setApiKeys({ hfToken: '', aaiApiKey: '' })
+      } else {
+        toast.error('Erro ao atualizar algumas chaves: ' + result.errors.join(', '), {
+          duration: 8000,
+        })
+      }
+      
     } catch (error) {
-      toast.error('Erro ao salvar chaves de API')
+      console.error(error)
+      toast.error('Erro ao salvar chaves de API: ' + (error.response?.data?.detail || error.message))
     } finally {
       setSavingKeys(false)
     }
@@ -72,32 +108,6 @@ export default function Settings() {
 
   const toggleKeyVisibility = (key) => {
     setShowKeys(prev => ({ ...prev, [key]: !prev[key] }))
-  }
-
-  const copyEnvTemplate = () => {
-    const envContent = `# API Keys
-HF_TOKEN=${apiKeys.hfToken || 'sua_chave_huggingface_aqui'}
-AAI_API_KEY=${apiKeys.aaiApiKey || 'sua_chave_assemblyai_aqui'}
-
-# Database Configuration
-DATABASE_URL=sqlite:///./database/transcriptions.db
-
-# API Configuration
-API_HOST=0.0.0.0
-API_PORT=2020
-DEBUG=True
-
-# File Upload Configuration
-MAX_UPLOAD_SIZE_MB=500
-ALLOWED_EXTENSIONS=mp3,wav,mp4,mpeg,m4a,flac,ogg,opus
-
-# Processing Configuration
-DEFAULT_TRANSCRIPTION_MODEL=whisper
-MIN_SEGMENT_DURATION=0.7
-SILENCE_THRESHOLD=-30`
-
-    navigator.clipboard.writeText(envContent)
-    toast.success('Conteúdo do .env copiado! Cole no arquivo modules/backend/.env')
   }
 
   return (
@@ -195,9 +205,9 @@ SILENCE_THRESHOLD=-30`
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-            <p className="text-sm text-yellow-800">
-              <strong>⚠️ Importante:</strong> As chaves de API devem ser configuradas no arquivo <code className="bg-yellow-100 px-1 rounded">.env</code> do backend e o servidor deve ser reiniciado.
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <p className="text-sm text-blue-800">
+              <strong>💡 Como funciona:</strong> Digite suas chaves abaixo e clique em "Salvar e Ativar". Os modelos serão recarregados automaticamente sem necessidade de reiniciar o servidor!
             </p>
           </div>
 
@@ -256,33 +266,25 @@ SILENCE_THRESHOLD=-30`
           </div>
 
           {/* Instruções */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="text-sm font-semibold text-blue-900 mb-2">📝 Como Configurar:</h4>
-            <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
-              <li>Preencha as chaves acima</li>
-              <li>Clique em "Copiar Configuração .env"</li>
-              <li>Cole o conteúdo no arquivo <code className="bg-blue-100 px-1 rounded">modules/backend/.env</code></li>
-              <li>Reinicie o servidor backend</li>
-              <li>Atualize esta página para ver os modelos ativos</li>
-            </ol>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-green-900 mb-2">✨ Funcionalidade Automática:</h4>
+            <ul className="text-sm text-green-800 space-y-1 list-disc list-inside">
+              <li>Digite suas chaves nos campos acima</li>
+              <li>Clique em "Salvar e Ativar"</li>
+              <li>Os modelos serão carregados automaticamente</li>
+              <li>Sem necessidade de reiniciar o servidor! 🎉</li>
+            </ul>
           </div>
 
-          <div className="flex gap-2">
-            <Button
-              onClick={copyEnvTemplate}
-              variant="outline"
-              icon={Key}
-            >
-              Copiar Configuração .env
-            </Button>
-            <Button
-              onClick={handleSaveApiKeys}
-              loading={savingKeys}
-              icon={Save}
-            >
-              Salvar Localmente
-            </Button>
-          </div>
+          <Button
+            onClick={handleSaveApiKeys}
+            loading={savingKeys}
+            disabled={!apiKeys.hfToken && !apiKeys.aaiApiKey}
+            icon={Save}
+            className="w-full"
+          >
+            {savingKeys ? 'Salvando e Recarregando...' : 'Salvar e Ativar Modelos'}
+          </Button>
         </CardContent>
       </Card>
 

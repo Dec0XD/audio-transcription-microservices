@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from pydub import AudioSegment
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
+from pydantic import BaseModel
 import aiofiles
 
 from .config import settings
@@ -54,10 +55,15 @@ Base.metadata.create_all(bind=engine)
 os.makedirs("database", exist_ok=True)
 os.makedirs("temp", exist_ok=True)
 
-# ========== CARREGAR TODOS OS MODELOS NO STARTUP ==========
+# ========== MODELOS GLOBAIS ==========
 diarization_engine: Optional[DiarizationEngine] = None
 whisper_engine: Optional[WhisperEngine] = None
 assemblyai_engine: Optional[AssemblyAIEngine] = None
+
+# ========== PYDANTIC MODELS ==========
+class ApiKeysUpdate(BaseModel):
+    hf_token: Optional[str] = None
+    aai_api_key: Optional[str] = None
 
 @app.on_event("startup")
 async def load_models():
@@ -484,6 +490,149 @@ async def get_statistics(
         "failed": failed,
         "processing": processing
     }
+
+
+@app.get("/api-keys")
+async def get_api_keys_status(
+    current_user: Optional[TokenData] = Depends(get_current_user)
+):
+    """Retorna o status das API Keys (sem expor os valores)."""
+    return {
+        "hf_token": {
+            "configured": bool(settings.HF_TOKEN),
+            "value": f"{settings.HF_TOKEN[:8]}..." if settings.HF_TOKEN else None
+        },
+        "aai_api_key": {
+            "configured": bool(settings.AAI_API_KEY),
+            "value": f"{settings.AAI_API_KEY[:8]}..." if settings.AAI_API_KEY else None
+        }
+    }
+
+
+@app.post("/api-keys")
+async def update_api_keys(
+    keys: ApiKeysUpdate,
+    current_user: Optional[TokenData] = Depends(get_current_user)
+):
+    """
+    Atualiza as API Keys e recarrega os modelos.
+    
+    Args:
+        keys: Novas chaves de API
+        
+    Returns:
+        Status da atualização e modelos recarregados
+    """
+    global diarization_engine, whisper_engine, assemblyai_engine
+    
+    try:
+        logger.info("=" * 60)
+        logger.info("ATUALIZANDO API KEYS E RECARREGANDO MODELOS")
+        logger.info("=" * 60)
+        
+        updated_models = []
+        errors = []
+        
+        # Atualizar HF_TOKEN
+        if keys.hf_token:
+            old_hf_token = settings.HF_TOKEN
+            settings.HF_TOKEN = keys.hf_token
+            os.environ["HF_TOKEN"] = keys.hf_token
+            
+            # Recarregar Pyannote
+            try:
+                logger.info("🔄 Recarregando Pyannote...")
+                diarization_engine = DiarizationEngine(keys.hf_token)
+                updated_models.append({
+                    "model": "pyannote",
+                    "status": "loaded",
+                    "device": diarization_engine.get_device()
+                })
+                logger.info(f"✅ Pyannote recarregado! Device: {diarization_engine.get_device()}")
+            except Exception as e:
+                error_msg = str(e)
+                if "401" in error_msg or "Unauthorized" in error_msg:
+                    error_msg = "Token inválido ou sem permissões. Verifique se o token está correto e tem permissão 'Read'."
+                elif "403" in error_msg or "Forbidden" in error_msg:
+                    error_msg = "Acesso negado. Você precisa aceitar os termos de uso em: https://huggingface.co/pyannote/speaker-diarization"
+                logger.error(f"❌ Erro ao recarregar Pyannote: {error_msg}")
+                errors.append(f"Pyannote: {error_msg}")
+                diarization_engine = None
+            
+            # Recarregar Whisper
+            try:
+                logger.info("🔄 Recarregando Whisper...")
+                whisper_engine = WhisperEngine(keys.hf_token)
+                updated_models.append({
+                    "model": "whisper",
+                    "status": "loaded",
+                    "device": whisper_engine.get_device()
+                })
+                logger.info(f"✅ Whisper recarregado! Device: {whisper_engine.get_device()}")
+            except Exception as e:
+                error_msg = str(e)
+                if "401" in error_msg or "Unauthorized" in error_msg:
+                    error_msg = "Token inválido ou sem permissões. Verifique se o token está correto e tem permissão 'Read'."
+                elif "403" in error_msg or "Forbidden" in error_msg:
+                    error_msg = "Acesso negado. Certifique-se de que o token tem permissão de leitura."
+                logger.error(f"❌ Erro ao recarregar Whisper: {error_msg}")
+                errors.append(f"Whisper: {error_msg}")
+                whisper_engine = None
+        
+        # Atualizar AAI_API_KEY
+        if keys.aai_api_key:
+            old_aai_key = settings.AAI_API_KEY
+            settings.AAI_API_KEY = keys.aai_api_key
+            os.environ["AAI_API_KEY"] = keys.aai_api_key
+            
+            # Recarregar AssemblyAI
+            try:
+                logger.info("🔄 Reconfigurando AssemblyAI...")
+                assemblyai_engine = AssemblyAIEngine(keys.aai_api_key)
+                updated_models.append({
+                    "model": "assemblyai",
+                    "status": "configured",
+                    "device": assemblyai_engine.get_device()
+                })
+                logger.info("✅ AssemblyAI reconfigurado!")
+            except Exception as e:
+                logger.error(f"❌ Erro ao reconfigurar AssemblyAI: {e}")
+                errors.append(f"AssemblyAI: {str(e)}")
+                settings.AAI_API_KEY = old_aai_key
+                if old_aai_key:
+                    os.environ["AAI_API_KEY"] = old_aai_key
+        
+        logger.info("=" * 60)
+        logger.info("ATUALIZAÇÃO CONCLUÍDA")
+        logger.info("=" * 60)
+        
+        return {
+            "success": len(errors) == 0,
+            "message": "API Keys atualizadas e modelos recarregados" if len(errors) == 0 else "Algumas chaves não puderam ser atualizadas",
+            "updated_models": updated_models,
+            "errors": errors,
+            "current_status": {
+                "diarization": {
+                    "loaded": diarization_engine is not None,
+                    "device": diarization_engine.get_device() if diarization_engine else "not loaded"
+                },
+                "whisper": {
+                    "loaded": whisper_engine is not None,
+                    "device": whisper_engine.get_device() if whisper_engine else "not loaded"
+                },
+                "assemblyai": {
+                    "loaded": assemblyai_engine is not None,
+                    "device": assemblyai_engine.get_device() if assemblyai_engine else "not loaded"
+                }
+            }
+        }
+    
+    except Exception as e:
+        logger.error(f"❌ Erro fatal ao atualizar API Keys: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao atualizar API Keys: {str(e)}"
+        )
 
 
 # ========== ENDPOINTS DIRETOS DOS SERVIÇOS (para compatibilidade) ==========

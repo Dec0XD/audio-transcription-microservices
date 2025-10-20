@@ -66,4 +66,19 @@ export const audioService = {
     
     return data
   },
+
+  // Obter status das API Keys (sem expor valores completos)
+  async getApiKeysStatus() {
+    const { data } = await api.get('/api-keys')
+    return data
+  },
+
+  // Atualizar API Keys
+  async updateApiKeys(keys) {
+    const { data } = await api.post('/api-keys', {
+      hf_token: keys.hfToken || null,
+      aai_api_key: keys.aaiApiKey || null,
+    })
+    return data
+  },
 }
