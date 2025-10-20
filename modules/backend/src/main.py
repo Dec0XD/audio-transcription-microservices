@@ -17,6 +17,7 @@ from .security import get_current_user, TokenData
 from .services.diarization_engine import DiarizationEngine
 from .services.transcription_engine import WhisperEngine, AssemblyAIEngine
 from .utils.gpu_utils import log_device_info, optimize_gpu_settings
+from .api_keys_manager import api_keys_manager
 
 # Configurar logging
 logging.basicConfig(
@@ -73,6 +74,18 @@ async def load_models():
     logger.info("=" * 60)
     logger.info("INICIANDO CARREGAMENTO DOS MODELOS")
     logger.info("=" * 60)
+    
+    # Carregar chaves salvas do gerenciador
+    saved_keys = api_keys_manager.get_all()
+    if saved_keys.get("HF_TOKEN"):
+        settings.HF_TOKEN = saved_keys["HF_TOKEN"]
+        os.environ["HF_TOKEN"] = saved_keys["HF_TOKEN"]
+        logger.info("🔑 HF_TOKEN carregado do armazenamento persistente")
+    
+    if saved_keys.get("AAI_API_KEY"):
+        settings.AAI_API_KEY = saved_keys["AAI_API_KEY"]
+        os.environ["AAI_API_KEY"] = saved_keys["AAI_API_KEY"]
+        logger.info("🔑 AAI_API_KEY carregado do armazenamento persistente")
     
     # Log de informações do dispositivo
     log_device_info()
@@ -533,6 +546,17 @@ async def update_api_keys(
         updated_models = []
         errors = []
         
+        # Salvar chaves no armazenamento persistente
+        keys_to_save = {}
+        if keys.hf_token:
+            keys_to_save["HF_TOKEN"] = keys.hf_token
+        if keys.aai_api_key:
+            keys_to_save["AAI_API_KEY"] = keys.aai_api_key
+        
+        if keys_to_save:
+            api_keys_manager.set_multiple(keys_to_save)
+            logger.info(f"✅ Chaves salvas persistentemente: {list(keys_to_save.keys())}")
+        
         # Atualizar HF_TOKEN
         if keys.hf_token:
             old_hf_token = settings.HF_TOKEN
@@ -579,7 +603,7 @@ async def update_api_keys(
                 errors.append(f"Whisper: {error_msg}")
                 whisper_engine = None
         
-        # Atualizar AAI_API_KEY
+        # Atualizar AAI_API_KEY  
         if keys.aai_api_key:
             old_aai_key = settings.AAI_API_KEY
             settings.AAI_API_KEY = keys.aai_api_key
