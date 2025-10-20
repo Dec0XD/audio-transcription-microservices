@@ -32,9 +32,8 @@ export default function Settings() {
 
   const loadApiKeysStatus = async () => {
     try {
-      const status = await audioService.getApiKeysStatus()
-      // Apenas mostrar se estão configuradas (sem expor valores)
-      console.log('API Keys Status:', status)
+      await audioService.getApiKeysStatus()
+      // Status carregado
     } catch (error) {
       console.error('Erro ao carregar status das API Keys:', error)
     }
@@ -90,8 +89,8 @@ export default function Settings() {
         // Atualizar status do sistema
         await checkSystemHealth()
         
-        // Limpar campos
-        setApiKeys({ hfToken: '', aaiApiKey: '' })
+        // Manter as chaves nos campos para referência
+        // setApiKeys({ hfToken: '', aaiApiKey: '' })
       } else {
         // Mostrar erros detalhados
         if (result.errors && result.errors.length > 0) {
