@@ -53,7 +53,7 @@ class Settings(BaseSettings):
         description="Maximum upload size in MB"
     )
     ALLOWED_EXTENSIONS: str = Field(
-        default="mp3,wav,mp4,mpeg,m4a,flac",
+        default="mp3,wav,mp4,mpeg,m4a,flac,ogg,opus",
         description="Allowed file extensions"
     )
     

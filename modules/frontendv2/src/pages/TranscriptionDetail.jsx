@@ -1,0 +1,243 @@
+import { useState, useEffect } from 'react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
+import { 
+  ArrowLeft, 
+  Download, 
+  FileAudio,
+  Clock,
+  User,
+  FileText,
+  Copy,
+  CheckCircle2
+} from 'lucide-react'
+import Card, { CardHeader, CardTitle, CardContent } from '../components/Card'
+import Button from '../components/Button'
+import { audioService } from '../services/audioService'
+import toast from 'react-hot-toast'
+
+export default function TranscriptionDetail() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const [transcription, setTranscription] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    loadTranscription()
+  }, [id])
+
+  const loadTranscription = async () => {
+    try {
+      setLoading(true)
+      const data = await audioService.getTranscription(id)
+      setTranscription(data)
+    } catch (error) {
+      toast.error('Erro ao carregar transcrição')
+      console.error(error)
+      navigate('/transcriptions')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const copyToClipboard = async () => {
+    const text = transcription.segments
+      .map(seg => `[${seg.speaker}] ${seg.text}`)
+      .join('\n\n')
+    
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      toast.success('Texto copiado para a área de transferência')
+      setTimeout(() => setCopied(false), 2000)
+    } catch (error) {
+      toast.error('Erro ao copiar texto')
+    }
+  }
+
+  const downloadAsText = () => {
+    const text = transcription.segments
+      .map(seg => `[${seg.speaker}] (${seg.start.toFixed(1)}s - ${seg.end.toFixed(1)}s)\n${seg.text}`)
+      .join('\n\n')
+    
+    const blob = new Blob([text], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${transcription.filename}_transcricao.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const downloadAsJSON = () => {
+    const blob = new Blob([JSON.stringify(transcription, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${transcription.filename}_transcricao.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const downloadAsSRT = () => {
+    let srt = ''
+    transcription.segments.forEach((seg, i) => {
+      const start = formatSRTTime(seg.start)
+      const end = formatSRTTime(seg.end)
+      srt += `${i + 1}\n${start} --> ${end}\n${seg.text}\n\n`
+    })
+    
+    const blob = new Blob([srt], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${transcription.filename}_legendas.srt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const formatSRTTime = (seconds) => {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const secs = Math.floor(seconds % 60)
+    const ms = Math.floor((seconds % 1) * 1000)
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')},${String(ms).padStart(3, '0')}`
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Carregando transcrição...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!transcription) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-600">Transcrição não encontrada</p>
+        <Link to="/transcriptions">
+          <Button variant="primary" className="mt-4">Voltar para Transcrições</Button>
+        </Link>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/transcriptions')}
+            icon={ArrowLeft}
+          >
+            Voltar
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">{transcription.filename}</h1>
+            <p className="text-gray-600 mt-1">
+              Criado em {new Date(transcription.created_at).toLocaleString('pt-BR')}
+            </p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={copyToClipboard}>
+            {copied ? <CheckCircle2 className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            {copied ? 'Copiado!' : 'Copiar'}
+          </Button>
+          <Button variant="outline" size="sm" onClick={downloadAsText}>
+            <Download className="w-4 h-4" />
+            TXT
+          </Button>
+          <Button variant="outline" size="sm" onClick={downloadAsJSON}>
+            <Download className="w-4 h-4" />
+            JSON
+          </Button>
+          <Button variant="outline" size="sm" onClick={downloadAsSRT}>
+            <Download className="w-4 h-4" />
+            SRT
+          </Button>
+        </div>
+      </div>
+
+      {/* Estatísticas */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <StatCard
+          icon={Clock}
+          label="Duração"
+          value={`${transcription.duration_seconds?.toFixed(1)}s`}
+        />
+        <StatCard
+          icon={FileText}
+          label="Palavras"
+          value={transcription.word_count || 0}
+        />
+        <StatCard
+          icon={User}
+          label="Falantes"
+          value={transcription.num_speakers || 1}
+        />
+        <StatCard
+          icon={FileAudio}
+          label="Modelo"
+          value={transcription.transcription_model === 'whisper' ? 'Whisper' : 'AssemblyAI'}
+        />
+      </div>
+
+      {/* Transcrição */}
+      <Card>
+        <CardHeader>
+          <CardTitle>📝 Transcrição Completa</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {transcription.segments?.map((segment, index) => (
+              <div
+                key={index}
+                className="p-4 bg-gray-50 rounded-lg border border-gray-200"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary-100 text-primary-700 text-sm font-medium">
+                      {segment.speaker?.replace('SPEAKER_', '')}
+                    </span>
+                    <span className="font-medium text-gray-900">
+                      Falante {segment.speaker?.replace('SPEAKER_', '')}
+                    </span>
+                  </div>
+                  <span className="text-sm text-gray-500">
+                    {segment.start?.toFixed(1)}s - {segment.end?.toFixed(1)}s
+                  </span>
+                </div>
+                <p className="text-gray-800 leading-relaxed">{segment.text}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function StatCard({ icon: Icon, label, value }) {
+  return (
+    <Card>
+      <div className="flex items-center gap-3">
+        <div className="p-3 rounded-lg bg-primary-100">
+          <Icon className="w-5 h-5 text-primary-600" />
+        </div>
+        <div>
+          <p className="text-sm text-gray-600">{label}</p>
+          <p className="text-xl font-bold text-gray-900">{value}</p>
+        </div>
+      </div>
+    </Card>
+  )
+}
