@@ -93,9 +93,56 @@ export default function Settings() {
         // Limpar campos
         setApiKeys({ hfToken: '', aaiApiKey: '' })
       } else {
-        toast.error('Erro ao atualizar algumas chaves: ' + result.errors.join(', '), {
-          duration: 8000,
-        })
+        // Mostrar erros detalhados
+        if (result.errors && result.errors.length > 0) {
+          result.errors.forEach(error => {
+            if (error.includes('Token inválido') || error.includes('401')) {
+              toast.error(
+                <div className="space-y-2">
+                  <p className="font-semibold">❌ {error}</p>
+                  <p className="text-xs">
+                    Verifique se:
+                    <br />• O token está correto (começa com hf_)
+                    <br />• Tem permissão "Read"
+                    <br />• Foi criado em: huggingface.co/settings/tokens
+                  </p>
+                </div>,
+                { duration: 10000 }
+              )
+            } else if (error.includes('Acesso negado') || error.includes('403')) {
+              toast.error(
+                <div className="space-y-2">
+                  <p className="font-semibold">❌ {error}</p>
+                  <p className="text-xs">
+                    Aceite os termos de uso:
+                    <br />• https://huggingface.co/pyannote/speaker-diarization
+                    <br />• https://huggingface.co/pyannote/segmentation
+                  </p>
+                </div>,
+                { duration: 10000 }
+              )
+            } else {
+              toast.error(error, { duration: 8000 })
+            }
+          })
+        }
+        
+        // Se algum modelo foi carregado com sucesso, mostrar
+        if (result.updated_models && result.updated_models.length > 0) {
+          const modelsMsg = result.updated_models
+            .map(m => `✅ ${m.model}: ${m.device}`)
+            .join('\n')
+          
+          toast.success('Modelos carregados parcialmente:\n' + modelsMsg, {
+            duration: 6000,
+            style: {
+              whiteSpace: 'pre-line',
+            }
+          })
+        }
+        
+        // Atualizar status do sistema mesmo com erros
+        await checkSystemHealth()
       }
       
     } catch (error) {
@@ -209,6 +256,21 @@ export default function Settings() {
             <p className="text-sm text-blue-800">
               <strong>💡 Como funciona:</strong> Digite suas chaves abaixo e clique em "Salvar e Ativar". Os modelos serão recarregados automaticamente sem necessidade de reiniciar o servidor!
             </p>
+          </div>
+
+          {/* Alertas de Requisitos */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-2">
+            <h4 className="text-sm font-semibold text-yellow-900">⚠️ Requisitos do Hugging Face Token:</h4>
+            <ul className="text-xs text-yellow-800 space-y-1 list-disc list-inside ml-2">
+              <li>Token deve ter permissão <strong>"Read"</strong></li>
+              <li>Token deve começar com <code className="bg-yellow-100 px-1 rounded">hf_</code></li>
+              <li>Para Pyannote, aceite os termos em:
+                <ul className="ml-4 mt-1 space-y-1">
+                  <li>→ <a href="https://huggingface.co/pyannote/speaker-diarization" target="_blank" rel="noopener noreferrer" className="text-yellow-900 underline hover:text-yellow-700">speaker-diarization</a></li>
+                  <li>→ <a href="https://huggingface.co/pyannote/segmentation" target="_blank" rel="noopener noreferrer" className="text-yellow-900 underline hover:text-yellow-700">segmentation</a></li>
+                </ul>
+              </li>
+            </ul>
           </div>
 
           {/* Hugging Face Token */}
