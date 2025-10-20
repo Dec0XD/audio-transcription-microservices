@@ -131,6 +131,7 @@ class WhisperEngine:
     ) -> str:
         """
         Transcreve um segmento de áudio.
+        Para áudios longos (>30s), divide em chunks de 30s e processa separadamente.
         
         Args:
             audio_path: Caminho do arquivo de áudio
@@ -157,53 +158,105 @@ class WhisperEngine:
             if start >= end:
                 raise ValueError("Tempo de início deve ser menor que tempo de fim")
             
-            # Extrair segmento
-            start_ms = int(start * 1000)
-            end_ms = int(end * 1000)
-            segment_audio = audio[start_ms:end_ms]
+            segment_duration = end - start
             
-            # Salvar temporariamente
-            segment_path = f"temp_whisper_{start}_{end}.wav"
-            segment_audio.export(segment_path, format="wav")
+            # Whisper funciona melhor com chunks de 30 segundos
+            CHUNK_SIZE = 30.0  # segundos
             
-            try:
-                # Carregar e processar
-                audio_data, sample_rate = librosa.load(segment_path, sr=16000)
-                input_features = self.processor(
-                    audio_data,
-                    sampling_rate=sample_rate,
-                    return_tensors="pt",
-                    language="pt",
-                    return_attention_mask=True
-                )
+            if segment_duration <= CHUNK_SIZE:
+                # Processar tudo de uma vez
+                return self._transcribe_chunk(audio, start, end, segment_duration)
+            else:
+                # Dividir em chunks e processar
+                logger.info(f"Áudio longo ({segment_duration:.1f}s) - processando em chunks de {CHUNK_SIZE}s")
+                transcriptions = []
+                current_start = start
                 
-                # Garantir consistência de dtype e device
-                input_features = input_features.to(self.model.device)
-                if hasattr(self.model, 'dtype') and self.model.dtype == torch.float16:
-                    input_features["input_features"] = input_features["input_features"].to(torch.float16)
+                while current_start < end:
+                    current_end = min(current_start + CHUNK_SIZE, end)
+                    chunk_text = self._transcribe_chunk(audio, current_start, current_end, segment_duration)
+                    
+                    if chunk_text.strip():
+                        transcriptions.append(chunk_text.strip())
+                    
+                    current_start = current_end
                 
-                # Gerar transcrição
-                with torch.no_grad():
-                    predicted_ids = self.model.generate(
-                        input_features["input_features"],
-                        attention_mask=input_features["attention_mask"]
-                    )
-                
-                transcription = self.processor.decode(predicted_ids[0], skip_special_tokens=True)
-                
+                final_transcription = " ".join(transcriptions)
                 elapsed = time.time() - start_time
-                logger.info(f"Transcrição Whisper concluída em {elapsed:.2f}s: {transcription[:100]}...")
+                logger.info(f"Transcrição Whisper completa em {elapsed:.2f}s ({len(transcriptions)} chunks): {final_transcription[:100]}...")
                 
-                return transcription
-            
-            finally:
-                # Limpar arquivo temporário
-                if os.path.exists(segment_path):
-                    os.remove(segment_path)
+                return final_transcription
         
         except Exception as e:
             logger.error(f"Erro na transcrição Whisper: {e}")
             raise
+    
+    def _transcribe_chunk(
+        self,
+        audio: AudioSegment,
+        start: float,
+        end: float,
+        total_duration: float
+    ) -> str:
+        """
+        Transcreve um chunk individual de áudio.
+        
+        Args:
+            audio: Objeto AudioSegment completo
+            start: Tempo de início do chunk (segundos)
+            end: Tempo de fim do chunk (segundos)
+            total_duration: Duração total do áudio original (para logging)
+            
+        Returns:
+            Texto transcrito do chunk
+        """
+        # Extrair segmento
+        start_ms = int(start * 1000)
+        end_ms = int(end * 1000)
+        segment_audio = audio[start_ms:end_ms]
+        
+        # Salvar temporariamente
+        segment_path = f"temp/whisper_chunk_{start}_{end}.wav"
+        segment_audio.export(segment_path, format="wav")
+        
+        try:
+            # Carregar e processar
+            audio_data, sample_rate = librosa.load(segment_path, sr=16000)
+            input_features = self.processor(
+                audio_data,
+                sampling_rate=sample_rate,
+                return_tensors="pt",
+                return_attention_mask=True
+            )
+            
+            # Garantir consistência de dtype e device
+            input_features = input_features.to(self.model.device)
+            if hasattr(self.model, 'dtype') and self.model.dtype == torch.float16:
+                input_features["input_features"] = input_features["input_features"].to(torch.float16)
+            
+            # Gerar transcrição com configurações otimizadas
+            with torch.no_grad():
+                # Forçar língua portuguesa nos IDs gerados
+                forced_decoder_ids = self.processor.get_decoder_prompt_ids(language="pt", task="transcribe")
+                
+                predicted_ids = self.model.generate(
+                    input_features["input_features"],
+                    attention_mask=input_features["attention_mask"],
+                    forced_decoder_ids=forced_decoder_ids,
+                    max_new_tokens=444,  # 448 (limite) - 4 (tokens especiais) = 444
+                    num_beams=1,  # Greedy search para velocidade (ou 5 para melhor qualidade)
+                    temperature=0.0,  # Determinístico
+                )
+            
+            transcription = self.processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
+            logger.info(f"Chunk {start:.1f}s-{end:.1f}s transcrito: {transcription[:80]}...")
+            
+            return transcription
+        
+        finally:
+            # Limpar arquivo temporário
+            if os.path.exists(segment_path):
+                os.remove(segment_path)
     
     def get_device(self) -> str:
         """Retorna o device usado pelo modelo."""
