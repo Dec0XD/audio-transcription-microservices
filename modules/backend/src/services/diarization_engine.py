@@ -6,9 +6,11 @@ import logging
 import os
 import numpy as np
 import librosa
+from huggingface_hub import hf_hub_download
 from pyannote.audio import Pipeline
 from pyannote.audio.pipelines.utils.hook import ProgressHook
 import torch
+from huggingface_hub.utils import GatedRepoError, HfHubHTTPError
 from pydub import AudioSegment
 from ..config import settings
 
@@ -40,15 +42,45 @@ class DiarizationEngine:
                 else:
                     logger.warning("⚠️  GPU não disponível - usando CPU (será mais lento)")
             
-            self.pipeline = Pipeline.from_pretrained(
-                "pyannote/speaker-diarization-3.1",
-                use_auth_token=self.hf_token
-            )
-            if self.pipeline is None:
+            try:
+                self.pipeline = Pipeline.from_pretrained(
+                    "pyannote/speaker-diarization-3.1",
+                    use_auth_token=self.hf_token
+                )
+            except GatedRepoError as e:
                 raise ValueError(
-                    "Falha ao carregar pipeline. "
-                    "Verifique o token e aceite os termos em "
-                    "https://hf.co/pyannote/speaker-diarization-3.1"
+                    "Acesso negado ao modelo gated 'pyannote/speaker-diarization-3.1'. "
+                    "Entre em https://huggingface.co/pyannote/speaker-diarization-3.1, "
+                    "solicite/aceite acesso e aguarde aprovação da conta."
+                ) from e
+            except HfHubHTTPError as e:
+                raise ValueError(
+                    "Falha HTTP ao baixar pipeline Pyannote no Hugging Face. "
+                    "Verifique HF_TOKEN e conectividade de rede."
+                ) from e
+
+            if self.pipeline is None:
+                try:
+                    hf_hub_download(
+                        repo_id="pyannote/speaker-diarization-3.1",
+                        filename="config.yaml",
+                        token=self.hf_token
+                    )
+                except GatedRepoError as e:
+                    raise ValueError(
+                        "Acesso negado ao modelo gated 'pyannote/speaker-diarization-3.1'. "
+                        "Acesse https://huggingface.co/pyannote/speaker-diarization-3.1, "
+                        "clique em Request access/Accept terms e aguarde aprovação."
+                    ) from e
+                except HfHubHTTPError as e:
+                    raise ValueError(
+                        "Falha HTTP ao validar acesso ao Pyannote no Hugging Face. "
+                        "Verifique conectividade e permissões do HF_TOKEN."
+                    ) from e
+
+                raise ValueError(
+                    "Falha ao carregar pipeline de diarização. "
+                    "Confirme HF_TOKEN e termos em https://hf.co/pyannote/speaker-diarization-3.1"
                 )
             
             # Configurar device otimizado

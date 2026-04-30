@@ -562,7 +562,7 @@ async def update_api_keys(
     Returns:
         Status da atualização e modelos recarregados
     """
-    global diarization_engine, whisper_engine, assemblyai_engine
+    global diarization_engine, whisper_engine, assemblyai_engine, meeting_minutes_generator
     
     try:
         logger.info("=" * 60)
