@@ -19,7 +19,7 @@ export const ALLOWED_FILE_TYPES = [
 ]
 
 export const ALLOWED_FILE_EXTENSIONS = ['.mp3', '.wav', '.mp4', '.m4a', '.flac', '.ogg', '.opus']
-export const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB in bytes
+export const MAX_FILE_SIZE = 20000 * 1024 * 1024 // 500MB in bytes (alinhado com backend)
 
 // Transcription Models
 export const TRANSCRIPTION_MODELS = {

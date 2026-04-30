@@ -5,10 +5,10 @@ import { Upload, FileAudio, X, Zap, Users } from 'lucide-react'
 import Card, { CardHeader, CardTitle, CardContent } from '../components/Card'
 import Button from '../components/Button'
 import { audioService } from '../services/audioService'
+import { MAX_FILE_SIZE } from '../utils/constants'
 import toast from 'react-hot-toast'
 
 const ALLOWED_TYPES = ['audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/x-m4a', 'audio/flac', 'audio/ogg', 'audio/opus', 'video/mp4']
-const MAX_SIZE = 100 * 1024 * 1024 // 100MB
 
 export default function NewTranscription() {
   const navigate = useNavigate()
@@ -24,8 +24,8 @@ export default function NewTranscription() {
     if (acceptedFiles.length > 0) {
       const selectedFile = acceptedFiles[0]
       
-      if (selectedFile.size > MAX_SIZE) {
-        toast.error('Arquivo muito grande! Máximo: 100MB')
+      if (selectedFile.size > MAX_FILE_SIZE) {
+        toast.error(`Arquivo muito grande! Máximo: ${(MAX_FILE_SIZE / (1024 * 1024)).toFixed(0)}MB`)
         return
       }
       
@@ -107,7 +107,7 @@ export default function NewTranscription() {
                 {isDragActive ? 'Solte o arquivo aqui' : 'Arraste um arquivo ou clique para selecionar'}
               </p>
               <p className="text-sm text-gray-500">
-                Formatos suportados: MP3, WAV, MP4, M4A, FLAC, OGG, OPUS (máx. 100MB)
+                Formatos suportados: MP3, WAV, MP4, M4A, FLAC, OGG, OPUS (máx. {(MAX_FILE_SIZE / (1024 * 1024)).toFixed(0)}MB)
               </p>
             </div>
           ) : (

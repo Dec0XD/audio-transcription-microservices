@@ -12,3 +12,4 @@ docker-compose.yml
 Dockerfile
 .dockerignore
 modules/backend/database
+modules/backend/temp
