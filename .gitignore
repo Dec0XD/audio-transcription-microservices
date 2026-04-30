@@ -1,13 +1,14 @@
 .gitignore
 .env
-venv
+.venv
 vtt_pyannote_whisper_assemblyai.ipynb
 Pegando legenda.ipynb
 __pycache__/
 .streamlit/
 transcription_history.json
 *.mp3
-
+node_modules/
 docker-compose.yml
 Dockerfile
 .dockerignore
+modules/backend/database
