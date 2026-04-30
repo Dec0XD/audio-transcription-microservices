@@ -43,11 +43,30 @@ class DiarizationEngine:
                     logger.warning("⚠️  GPU não disponível - usando CPU (será mais lento)")
             
             try:
+                # Validar acesso aos repositórios gated necessários antes de carregar o pipeline.
+                hf_hub_download(
+                    repo_id="pyannote/speaker-diarization-3.1",
+                    filename="config.yaml",
+                    token=self.hf_token
+                )
+                hf_hub_download(
+                    repo_id="pyannote/segmentation-3.0",
+                    filename="config.yaml",
+                    token=self.hf_token
+                )
+
                 self.pipeline = Pipeline.from_pretrained(
                     "pyannote/speaker-diarization-3.1",
                     use_auth_token=self.hf_token
                 )
             except GatedRepoError as e:
+                error_text = str(e)
+                if "pyannote/segmentation-3.0" in error_text:
+                    raise ValueError(
+                        "Acesso negado ao modelo gated 'pyannote/segmentation-3.0'. "
+                        "Acesse https://huggingface.co/pyannote/segmentation-3.0, "
+                        "clique em Request access/Accept terms e aguarde aprovação."
+                    ) from e
                 raise ValueError(
                     "Acesso negado ao modelo gated 'pyannote/speaker-diarization-3.1'. "
                     "Entre em https://huggingface.co/pyannote/speaker-diarization-3.1, "
@@ -58,6 +77,14 @@ class DiarizationEngine:
                     "Falha HTTP ao baixar pipeline Pyannote no Hugging Face. "
                     "Verifique HF_TOKEN e conectividade de rede."
                 ) from e
+            except AttributeError as e:
+                if "NoneType" in str(e) and "eval" in str(e):
+                    raise ValueError(
+                        "Falha ao inicializar Pyannote por falta de acesso a modelos dependentes. "
+                        "Confirme acesso em https://huggingface.co/pyannote/speaker-diarization-3.1 "
+                        "e https://huggingface.co/pyannote/segmentation-3.0"
+                    ) from e
+                raise
 
             if self.pipeline is None:
                 try:
