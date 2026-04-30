@@ -1,11 +1,14 @@
 import logging
 import os
 import time
+import asyncio
+import uuid
 from typing import Optional, List
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydub import AudioSegment
+from pydub.utils import which
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from pydantic import BaseModel
@@ -177,13 +180,45 @@ def convert_to_wav(input_path: str, output_path: str = "temp/audio.wav") -> tupl
         Tupla (caminho_wav, duração_segundos)
     """
     try:
+        ffmpeg_path = which("ffmpeg") or which("avconv")
+        ffprobe_path = which("ffprobe") or which("avprobe")
+        if not ffmpeg_path or not ffprobe_path:
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "FFmpeg/FFprobe não encontrado no sistema. "
+                    "Instale o FFmpeg e adicione ao PATH para processar áudio/vídeo."
+                )
+            )
+
         audio = AudioSegment.from_file(input_path)
         audio.export(output_path, format="wav")
         duration = len(audio) / 1000.0
         return output_path, duration
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error converting to WAV: {e}")
         raise HTTPException(status_code=400, detail=f"Error converting audio: {str(e)}")
+
+
+async def remove_temp_file_with_retry(path: Optional[str], attempts: int = 5, delay: float = 0.2):
+    """Remove arquivo temporário com retries para reduzir lock transitório no Windows."""
+    if not path or not os.path.exists(path):
+        return
+
+    for attempt in range(1, attempts + 1):
+        try:
+            os.remove(path)
+            return
+        except PermissionError as e:
+            if attempt == attempts:
+                logger.warning(f"Could not remove temp file {path}: {e}")
+            else:
+                await asyncio.sleep(delay)
+        except Exception as e:
+            logger.warning(f"Could not remove temp file {path}: {e}")
+            return
 
 
 @app.get("/")
@@ -252,7 +287,8 @@ async def transcribe_audio(
             )
         
         # Salvar arquivo temporário
-        temp_input_path = f"temp/{file.filename}"
+        unique_input_name = f"upload_{uuid.uuid4()}.{file_ext}"
+        temp_input_path = f"temp/{unique_input_name}"
         async with aiofiles.open(temp_input_path, "wb") as f:
             content = await file.read()
             
@@ -433,18 +469,11 @@ async def transcribe_audio(
         raise HTTPException(status_code=500, detail=str(e))
     
     finally:
+        await file.close()
+
         # Limpar arquivos temporários
-        if temp_input_path and os.path.exists(temp_input_path):
-            try:
-                os.remove(temp_input_path)
-            except Exception as e:
-                logger.warning(f"Could not remove temp file {temp_input_path}: {e}")
-        
-        if temp_wav_path and os.path.exists(temp_wav_path):
-            try:
-                os.remove(temp_wav_path)
-            except Exception as e:
-                logger.warning(f"Could not remove temp file {temp_wav_path}: {e}")
+        await remove_temp_file_with_retry(temp_input_path)
+        await remove_temp_file_with_retry(temp_wav_path)
 
 
 @app.get("/transcriptions")
