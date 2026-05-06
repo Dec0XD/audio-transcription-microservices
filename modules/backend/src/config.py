@@ -1,11 +1,16 @@
 from pydantic_settings import BaseSettings
 from pydantic import Field
-from typing import Optional
 import os
+from pathlib import Path
+from typing import Literal, Optional
 
 
 class Settings(BaseSettings):
     """Configurações da aplicação."""
+    APP_ENV: Literal["dev", "prod", "test"] = Field(
+        default="dev",
+        description="Application environment (dev, prod, test)",
+    )
     
     # API Keys
     HF_TOKEN: Optional[str] = Field(default=None, description="Hugging Face API Token")
@@ -24,9 +29,9 @@ class Settings(BaseSettings):
     DEBUG: bool = Field(default=False, description="Debug mode")
     
     # Security
-    SECRET_KEY: str = Field(
-        default="your-secret-key-change-this-in-production",
-        description="Secret key for JWT"
+    SECRET_KEY: Optional[str] = Field(
+        default=None,
+        description="Secret key for JWT (required in production)",
     )
     ALGORITHM: str = Field(default="HS256", description="JWT Algorithm")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
@@ -90,6 +95,10 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = True
+
+    @property
+    def is_production(self) -> bool:
+        return self.APP_ENV == "prod"
     
     @property
     def allowed_extensions_list(self) -> list[str]:
@@ -101,6 +110,90 @@ class Settings(BaseSettings):
         """Retorna tamanho máximo de upload em bytes."""
         return self.MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
+    def validate_startup(self) -> list[str]:
+        """Valida configurações obrigatórias para startup seguro."""
+        errors: list[str] = []
+
+        if not self.DATABASE_URL or not self.DATABASE_URL.strip():
+            errors.append("DATABASE_URL is required")
+
+        if self.DEFAULT_TRANSCRIPTION_MODEL not in {"whisper", "assemblyai"}:
+            errors.append("DEFAULT_TRANSCRIPTION_MODEL must be 'whisper' or 'assemblyai'")
+
+        if not (0.1 <= self.GPU_MEMORY_FRACTION <= 1.0):
+            errors.append("GPU_MEMORY_FRACTION must be between 0.1 and 1.0")
+
+        if self.ACCESS_TOKEN_EXPIRE_MINUTES <= 0:
+            errors.append("ACCESS_TOKEN_EXPIRE_MINUTES must be greater than 0")
+
+        # Security checks are strict in production only (low-risk migration).
+        if self.is_production:
+            secret = (self.SECRET_KEY or "").strip()
+            if not secret:
+                errors.append("SECRET_KEY is required when APP_ENV=prod")
+            else:
+                insecure_markers = {
+                    "your-secret-key-change-this-in-production",
+                    "your-secret-key-here-change-in-production",
+                    "changeme",
+                    "change-me",
+                    "default",
+                }
+                if secret.lower() in insecure_markers:
+                    errors.append("SECRET_KEY uses an insecure placeholder value in production")
+                if len(secret) < 32:
+                    errors.append("SECRET_KEY must have at least 32 characters in production")
+
+        return errors
+
+
+def resolve_env_file() -> str:
+    """
+    Resolve qual arquivo de ambiente usar.
+
+    Prioridade:
+    1) SETTINGS_ENV_FILE (override explícito)
+    2) .env.<APP_ENV> se existir (ex.: .env.dev, .env.prod)
+    3) .env (fallback)
+    """
+    explicit_file = os.getenv("SETTINGS_ENV_FILE")
+    if explicit_file:
+        return explicit_file
+
+    app_env = (os.getenv("APP_ENV", "dev") or "dev").strip().lower()
+    env_candidate = f".env.{app_env}"
+    if Path(env_candidate).exists():
+        return env_candidate
+
+    return ".env"
+
+
+def apply_persisted_secrets(persisted_keys: dict[str, str]) -> list[str]:
+    """Aplica secrets persistidos ao settings e ao ambiente de processo."""
+    applied: list[str] = []
+    for key in ("HF_TOKEN", "AAI_API_KEY", "GEMINI_API_KEY"):
+        value = (persisted_keys.get(key) or "").strip()
+        if value:
+            setattr(settings, key, value)
+            os.environ[key] = value
+            applied.append(key)
+    return applied
+
+
+def sanitize_settings_snapshot() -> dict:
+    """Retorna snapshot seguro para logs de startup (sem expor segredos)."""
+    return {
+        "app_env": settings.APP_ENV,
+        "api_host": settings.API_HOST,
+        "api_port": settings.API_PORT,
+        "debug": settings.DEBUG,
+        "database_url_set": bool(settings.DATABASE_URL),
+        "hf_token_configured": bool(settings.HF_TOKEN),
+        "aai_api_key_configured": bool(settings.AAI_API_KEY),
+        "gemini_api_key_configured": bool(settings.GEMINI_API_KEY),
+        "secret_key_configured": bool(settings.SECRET_KEY),
+    }
+
 
 # Instância global de configurações
-settings = Settings()
+settings = Settings(_env_file=resolve_env_file(), _env_file_encoding="utf-8")

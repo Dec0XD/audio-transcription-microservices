@@ -1,10 +1,9 @@
 ﻿import logging
-import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .config import settings
+from .config import apply_persisted_secrets, sanitize_settings_snapshot, settings
 from . import engine_registry  # noqa: F401
 from .api_keys_manager import api_keys_manager
 from .services.diarization_engine import DiarizationEngine
@@ -65,20 +64,18 @@ async def load_models():
 
         # Sobrescrever settings com chaves persistidas (têm prioridade sobre .env)
         saved_keys = api_keys_manager.get_all()
-        if saved_keys.get("HF_TOKEN"):
-            settings.HF_TOKEN = saved_keys["HF_TOKEN"]
-            os.environ["HF_TOKEN"] = saved_keys["HF_TOKEN"]
-            logger.info("HF_TOKEN carregado do armazenamento persistente")
+        applied_keys = apply_persisted_secrets(saved_keys)
+        if applied_keys:
+            logger.info(f"Secrets carregados do armazenamento persistente: {applied_keys}")
+        logger.info(f"Config snapshot: {sanitize_settings_snapshot()}")
 
-        if saved_keys.get("AAI_API_KEY"):
-            settings.AAI_API_KEY = saved_keys["AAI_API_KEY"]
-            os.environ["AAI_API_KEY"] = saved_keys["AAI_API_KEY"]
-            logger.info("AAI_API_KEY carregado do armazenamento persistente")
-
-        if saved_keys.get("GEMINI_API_KEY"):
-            settings.GEMINI_API_KEY = saved_keys.get("GEMINI_API_KEY", "")
-            os.environ["GEMINI_API_KEY"] = saved_keys["GEMINI_API_KEY"]
-            logger.info("GEMINI_API_KEY carregado do armazenamento persistente")
+        validation_errors = settings.validate_startup()
+        if validation_errors:
+            for err in validation_errors:
+                logger.error(f"Startup config error: {err}")
+            raise RuntimeError(
+                "Invalid configuration. Fix startup settings before running the API."
+            )
 
         log_device_info()
         optimize_gpu_settings()
