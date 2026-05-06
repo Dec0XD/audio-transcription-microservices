@@ -23,6 +23,12 @@ class Settings(BaseSettings):
         description="Database connection URL"
     )
     
+    # Redis & Job Queue
+    REDIS_URL: str = Field(
+        default="redis://localhost:6379/0",
+        description="Redis connection URL for job queue"
+    )
+    
     # API Configuration
     API_HOST: str = Field(default="0.0.0.0", description="API Host")
     API_PORT: int = Field(default=2020, description="API Port")

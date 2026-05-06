@@ -38,6 +38,10 @@ pydantic==2.10.6
 pydantic-settings==2.7.1
 aiofiles==24.1.0
 
+# Job Queue
+rq==1.18.0
+redis==5.0.1
+
 # Testing
 pytest==8.3.4
 pytest-asyncio==0.25.2
