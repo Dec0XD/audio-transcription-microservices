@@ -93,3 +93,26 @@ class TranscriptionOwnership(Base):
             f"<TranscriptionOwnership(transcription_id={self.transcription_id}, "
             f"owner_sub={self.owner_sub})>"
         )
+
+
+class TranscriptionJob(Base):
+    """Job local de processamento assíncrono de transcrição."""
+
+    __tablename__ = "transcription_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    transcription_id = Column(Integer, nullable=False, unique=True, index=True)
+    input_path = Column(String(500), nullable=False)
+    use_diarization = Column(Boolean, default=False)
+    transcription_model = Column(String(50), nullable=False)
+    status = Column(String(20), default="queued")  # queued, processing, done, failed
+    error_message = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    def __repr__(self):
+        return (
+            f"<TranscriptionJob(transcription_id={self.transcription_id}, "
+            f"status={self.status})>"
+        )

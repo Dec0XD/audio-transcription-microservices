@@ -54,7 +54,7 @@ export default function NewTranscription() {
       setUploading(true)
       setProgress(0)
 
-      const result = await audioService.transcribeAudio(file, {
+      const result = await audioService.createTranscriptionJob(file, {
         ...options,
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
@@ -62,7 +62,7 @@ export default function NewTranscription() {
         }
       })
 
-      toast.success('Transcrição concluída com sucesso!')
+      toast.success('Arquivo enviado. Job de transcrição enfileirado!')
       navigate(`/transcriptions/${result.id}`)
     } catch (error) {
       console.error('Erro ao transcrever:', error)

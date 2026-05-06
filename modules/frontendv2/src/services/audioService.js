@@ -27,6 +27,32 @@ export const audioService = {
     return data
   },
 
+  // Upload e criação de job assíncrono local
+  async createTranscriptionJob(file, options = {}) {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('use_diarization', options.useDiarization || false)
+
+    if (options.transcriptionModel) {
+      formData.append('transcription_model', options.transcriptionModel)
+    }
+
+    const { data } = await api.post('/transcriptions/jobs', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: options.onUploadProgress,
+    })
+
+    return data
+  },
+
+  // Consultar status de job assíncrono
+  async getTranscriptionJobStatus(id) {
+    const { data } = await api.get(`/transcriptions/jobs/${id}/status`)
+    return data
+  },
+
   // Listar transcrições
   async listTranscriptions(params = {}) {
     const { data } = await api.get('/transcriptions', { params })
