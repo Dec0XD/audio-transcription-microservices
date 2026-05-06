@@ -4,7 +4,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .config import settings
 
@@ -13,7 +13,7 @@ from .config import settings
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Configuração OAuth2
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 
 class Token(BaseModel):
@@ -25,6 +25,8 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     """Dados extraídos do token."""
     username: Optional[str] = None
+    roles: list[str] = Field(default_factory=list)
+    scopes: list[str] = Field(default_factory=list)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -71,13 +73,17 @@ def decode_access_token(token: str) -> Optional[TokenData]:
         if username is None:
             return None
         
-        return TokenData(username=username)
+        return TokenData(
+            username=username,
+            roles=payload.get("roles", []),
+            scopes=payload.get("scopes", []),
+        )
     
     except JWTError:
         return None
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> Optional[TokenData]:
+async def get_optional_user(token: str = Depends(oauth2_scheme)) -> Optional[TokenData]:
     """
     Obtém o usuário atual a partir do token.
     Retorna None se não houver token (permite acesso anônimo).
@@ -97,12 +103,28 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> Optional[Toke
     return token_data
 
 
-def require_authentication(current_user: Optional[TokenData] = Depends(get_current_user)):
+async def get_authenticated_user(
+    current_user: Optional[TokenData] = Depends(get_optional_user),
+) -> Optional[TokenData]:
+    """
+    Usuário autenticado obrigatório em modo strict.
+    Em modo permissive, mantém compatibilidade e permite acesso sem token.
+    """
+    if current_user is None and settings.is_auth_strict:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return current_user
+
+
+def require_authentication(current_user: Optional[TokenData] = Depends(get_authenticated_user)):
     """
     Dependência que requer autenticação.
     Use em rotas que precisam de usuário autenticado.
     """
-    if current_user is None:
+    if current_user is None and settings.is_auth_strict:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required",
@@ -110,3 +132,104 @@ def require_authentication(current_user: Optional[TokenData] = Depends(get_curre
         )
     
     return current_user
+
+
+def get_current_user(token: str = Depends(oauth2_scheme)) -> Optional[TokenData]:
+    """Alias de compatibilidade para chamadas antigas."""
+    if token is None:
+        return None
+    token_data = decode_access_token(token)
+    if token_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return token_data
+
+
+def require_scope(scope: str):
+    def _require_scope(
+        current_user: Optional[TokenData] = Depends(get_authenticated_user),
+    ) -> Optional[TokenData]:
+        if current_user is None:
+            return None
+
+        if "admin" in current_user.roles:
+            return current_user
+
+        if scope not in current_user.scopes:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Missing required scope: {scope}",
+            )
+        return current_user
+
+    return _require_scope
+
+
+def require_scope_when(scope: str, enabled: bool):
+    def _require_scope_when(
+        current_user: Optional[TokenData] = Depends(get_optional_user),
+    ) -> Optional[TokenData]:
+        if not enabled:
+            return current_user
+
+        if current_user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        if "admin" in current_user.roles:
+            return current_user
+
+        if scope not in current_user.scopes:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Missing required scope: {scope}",
+            )
+
+        return current_user
+
+    return _require_scope_when
+
+
+def require_admin(
+    current_user: Optional[TokenData] = Depends(get_authenticated_user),
+) -> Optional[TokenData]:
+    if current_user is None:
+        return None
+
+    if "admin" not in current_user.roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required",
+        )
+    return current_user
+
+
+def require_admin_when(enabled: bool):
+    def _require_admin_when(
+        current_user: Optional[TokenData] = Depends(get_optional_user),
+    ) -> Optional[TokenData]:
+        if not enabled:
+            return current_user
+
+        if current_user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        if "admin" not in current_user.roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin role required",
+            )
+
+        return current_user
+
+    return _require_admin_when

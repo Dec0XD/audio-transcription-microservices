@@ -11,7 +11,7 @@ from .services.transcription_engine import WhisperEngine, AssemblyAIEngine
 from .services.meeting_minutes import MeetingMinutesGenerator
 from .utils.gpu_utils import log_device_info, optimize_gpu_settings
 from .database import engine as db_engine  # noqa: F401 – aciona create_all na importação
-from .routers import api_keys, compat, health, meeting_minutes, transcribe, transcriptions
+from .routers import api_keys, auth, compat, health, meeting_minutes, transcribe, transcriptions
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,6 +44,7 @@ app.add_middleware(
 # Routers
 # ---------------------------------------------------------------------------
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(transcribe.router)
 app.include_router(transcriptions.router)
 app.include_router(api_keys.router)

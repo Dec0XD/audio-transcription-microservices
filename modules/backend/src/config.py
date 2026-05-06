@@ -90,6 +90,40 @@ class Settings(BaseSettings):
         default="auto",
         description="Whisper model dtype (auto, float16, float32)"
     )
+
+    # Auth rollout controls
+    AUTH_MODE: Literal["permissive", "strict"] = Field(
+        default="permissive",
+        description="Authentication rollout mode",
+    )
+    AUTH_PROTECT_API_KEYS: bool = Field(
+        default=True,
+        description="Protect /api-keys endpoints",
+    )
+    AUTH_PROTECT_PROCESSING: bool = Field(
+        default=True,
+        description="Protect processing endpoints (/transcribe, /meeting-minutes, compat)",
+    )
+    AUTH_PROTECT_READS: bool = Field(
+        default=False,
+        description="Protect read endpoints (/transcriptions, /stats)",
+    )
+    AUTH_ADMIN_USERNAME: str = Field(
+        default="admin",
+        description="Bootstrap admin username",
+    )
+    AUTH_ADMIN_PASSWORD: Optional[str] = Field(
+        default=None,
+        description="Bootstrap admin password (dev only)",
+    )
+    AUTH_ADMIN_PASSWORD_HASH: Optional[str] = Field(
+        default=None,
+        description="Bootstrap admin password hash (recommended)",
+    )
+    AUTH_ALLOW_DEMO_LOGIN: bool = Field(
+        default=True,
+        description="Allow demo login in permissive mode when admin credentials are absent",
+    )
     
     class Config:
         env_file = ".env"
@@ -99,6 +133,10 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.APP_ENV == "prod"
+
+    @property
+    def is_auth_strict(self) -> bool:
+        return self.AUTH_MODE == "strict"
     
     @property
     def allowed_extensions_list(self) -> list[str]:
@@ -126,6 +164,9 @@ class Settings(BaseSettings):
         if self.ACCESS_TOKEN_EXPIRE_MINUTES <= 0:
             errors.append("ACCESS_TOKEN_EXPIRE_MINUTES must be greater than 0")
 
+        if self.AUTH_MODE not in {"permissive", "strict"}:
+            errors.append("AUTH_MODE must be 'permissive' or 'strict'")
+
         # Security checks are strict in production only (low-risk migration).
         if self.is_production:
             secret = (self.SECRET_KEY or "").strip()
@@ -143,6 +184,11 @@ class Settings(BaseSettings):
                     errors.append("SECRET_KEY uses an insecure placeholder value in production")
                 if len(secret) < 32:
                     errors.append("SECRET_KEY must have at least 32 characters in production")
+
+            if not self.AUTH_ADMIN_PASSWORD_HASH and not self.AUTH_ADMIN_PASSWORD:
+                errors.append(
+                    "AUTH_ADMIN_PASSWORD_HASH or AUTH_ADMIN_PASSWORD is required when APP_ENV=prod"
+                )
 
         return errors
 
@@ -192,6 +238,10 @@ def sanitize_settings_snapshot() -> dict:
         "aai_api_key_configured": bool(settings.AAI_API_KEY),
         "gemini_api_key_configured": bool(settings.GEMINI_API_KEY),
         "secret_key_configured": bool(settings.SECRET_KEY),
+        "auth_mode": settings.AUTH_MODE,
+        "auth_protect_api_keys": settings.AUTH_PROTECT_API_KEYS,
+        "auth_protect_processing": settings.AUTH_PROTECT_PROCESSING,
+        "auth_protect_reads": settings.AUTH_PROTECT_READS,
     }
 
 

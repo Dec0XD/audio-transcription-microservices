@@ -4,10 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import engine_registry
+from ..authorization import enforce_transcription_access
 from ..database import get_db
 from ..models import Transcription
 from ..schemas import MeetingMinutesRequest
-from ..security import TokenData, get_current_user
+from ..config import settings
+from ..security import TokenData, require_scope_when
 
 import logging
 
@@ -20,7 +22,9 @@ router = APIRouter()
 async def generate_meeting_minutes(
     request: MeetingMinutesRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[TokenData] = Depends(get_current_user),
+    current_user: Optional[TokenData] = Depends(
+        require_scope_when("meeting_minutes", settings.AUTH_PROTECT_PROCESSING)
+    ),
 ):
     """
     Gera ata de reunião a partir de uma transcrição existente.
@@ -46,6 +50,14 @@ async def generate_meeting_minutes(
 
         if not transcription:
             raise HTTPException(status_code=404, detail="Transcription not found")
+
+        if settings.AUTH_PROTECT_PROCESSING:
+            enforce_transcription_access(
+                db,
+                request.transcription_id,
+                current_user,
+                write=False,
+            )
 
         if transcription.status != "completed":
             raise HTTPException(
@@ -99,7 +111,9 @@ async def generate_meeting_minutes(
 
 @router.get("/meeting-minutes/status")
 async def get_meeting_minutes_status(
-    current_user: Optional[TokenData] = Depends(get_current_user),
+    current_user: Optional[TokenData] = Depends(
+        require_scope_when("meeting_minutes", settings.AUTH_PROTECT_READS)
+    ),
 ):
     """Retorna status do gerador de atas."""
     return {

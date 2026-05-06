@@ -11,9 +11,11 @@ import os
 from typing import Optional
 
 import aiofiles
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from .. import engine_registry
+from ..config import settings
+from ..security import TokenData, require_scope_when
 from ..utils.audio import remove_temp_file_with_retry
 
 logger = logging.getLogger(__name__)
@@ -26,6 +28,9 @@ async def diarize_endpoint(
     file: UploadFile = File(...),
     min_duration: float = Form(0.7),
     silence_threshold: int = Form(-30),
+    current_user: Optional[TokenData] = Depends(
+        require_scope_when("transcribe", settings.AUTH_PROTECT_PROCESSING)
+    ),
 ):
     """
     Endpoint direto de diarização (compatível com pyannote_model.py).
@@ -75,6 +80,9 @@ async def whisper_transcribe_segment_endpoint(
     file: UploadFile = File(...),
     start: float = Form(0.0),
     end: Optional[float] = Form(None),
+    current_user: Optional[TokenData] = Depends(
+        require_scope_when("transcribe", settings.AUTH_PROTECT_PROCESSING)
+    ),
 ):
     """
     Endpoint direto de transcrição Whisper (compatível com whisper_model.py).
@@ -113,6 +121,9 @@ async def assemblyai_transcribe_segment_endpoint(
     file: UploadFile = File(...),
     start: float = Form(0.0),
     end: Optional[float] = Form(None),
+    current_user: Optional[TokenData] = Depends(
+        require_scope_when("transcribe", settings.AUTH_PROTECT_PROCESSING)
+    ),
 ):
     """
     Endpoint direto de transcrição AssemblyAI (compatível com assemblyai_model.py).

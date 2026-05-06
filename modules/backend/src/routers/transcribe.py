@@ -21,10 +21,11 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import engine_registry
+from ..authorization import create_transcription_owner
 from ..config import settings
 from ..database import get_db
 from ..models import Transcription
-from ..security import TokenData, get_current_user
+from ..security import TokenData, require_scope_when
 from ..utils.audio import convert_to_wav, remove_temp_file_with_retry
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,9 @@ async def transcribe_audio(
     use_diarization: bool = Form(False),
     transcription_model: Optional[str] = Form(None),
     db: Session = Depends(get_db),
-    current_user: Optional[TokenData] = Depends(get_current_user),
+    current_user: Optional[TokenData] = Depends(
+        require_scope_when("transcribe", settings.AUTH_PROTECT_PROCESSING)
+    ),
 ):
     """
     Transcreve um arquivo de áudio usando os engines integrados.
@@ -112,6 +115,8 @@ async def transcribe_audio(
         db.add(transcription_record)
         db.commit()
         db.refresh(transcription_record)
+
+        create_transcription_owner(db, transcription_record.id, current_user)
 
         # ---- Processar áudio ----
         try:

@@ -1,8 +1,9 @@
-import { Mic2 } from 'lucide-react'
+import { LogOut, Mic2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 
 export default function Navbar() {
-  const { user } = useAuthStore()
+  const { user, token, logout } = useAuthStore()
 
   return (
     <nav className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
@@ -19,6 +20,22 @@ export default function Navbar() {
 
       {/* Informações do Usuário */}
       <div className="flex items-center gap-3">
+        {!token && (
+          <Link
+            to="/login"
+            className="px-3 py-1.5 text-xs font-medium rounded-lg text-primary-700 bg-primary-50 hover:bg-primary-100 transition-colors"
+          >
+            Entrar
+          </Link>
+        )}
+        <button
+          type="button"
+          onClick={logout}
+          className="p-2 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
+          title="Sair"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
         <div className="text-right">
           <p className="text-sm font-medium text-gray-900">{user?.name}</p>
           <p className="text-xs text-gray-500">{user?.email}</p>

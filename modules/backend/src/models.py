@@ -76,3 +76,20 @@ class User(Base):
     
     def __repr__(self):
         return f"<User(id={self.id}, username={self.username})>"
+
+
+class TranscriptionOwnership(Base):
+    """Vincula uma transcrição ao subject do usuário dono."""
+
+    __tablename__ = "transcription_owners"
+
+    id = Column(Integer, primary_key=True, index=True)
+    transcription_id = Column(Integer, nullable=False, unique=True, index=True)
+    owner_sub = Column(String(255), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self):
+        return (
+            f"<TranscriptionOwnership(transcription_id={self.transcription_id}, "
+            f"owner_sub={self.owner_sub})>"
+        )

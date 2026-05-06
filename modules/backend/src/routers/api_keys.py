@@ -15,7 +15,7 @@ from .. import engine_registry
 from ..api_keys_manager import api_keys_manager
 from ..config import settings
 from ..schemas import ApiKeysUpdate
-from ..security import TokenData, get_current_user
+from ..security import TokenData, require_admin_when
 from ..services.diarization_engine import DiarizationEngine
 from ..services.meeting_minutes import MeetingMinutesGenerator
 from ..services.transcription_engine import AssemblyAIEngine, WhisperEngine
@@ -27,7 +27,7 @@ router = APIRouter()
 
 @router.get("/api-keys")
 async def get_api_keys_status(
-    current_user: Optional[TokenData] = Depends(get_current_user),
+    current_user: Optional[TokenData] = Depends(require_admin_when(settings.AUTH_PROTECT_API_KEYS)),
 ):
     """Retorna o status das API Keys sem expor os valores completos."""
     return {
@@ -45,7 +45,7 @@ async def get_api_keys_status(
 @router.post("/api-keys")
 async def update_api_keys(
     keys: ApiKeysUpdate,
-    current_user: Optional[TokenData] = Depends(get_current_user),
+    current_user: Optional[TokenData] = Depends(require_admin_when(settings.AUTH_PROTECT_API_KEYS)),
 ):
     """
     Atualiza as API Keys e recarrega os engines afetados.
