@@ -39,7 +39,7 @@ pydantic-settings==2.7.1
 aiofiles==24.1.0
 
 # Job Queue
-rq==1.18.0
+rq==1.16.2
 redis==5.0.1
 
 # Testing

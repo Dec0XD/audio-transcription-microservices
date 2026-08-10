@@ -20,10 +20,10 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY . /app
 
 # Permissões e diretórios
-RUN mkdir -p /app/database /app/temp /app/logs && chmod +x /app/modules/backend/start_all.sh
+RUN mkdir -p /app/database /app/temp /app/logs
 
 # Expor as portas usadas por todos os serviços
 EXPOSE 2020 8000 8001 8002
 
-# Comando padrão para iniciar todos os serviços
-CMD ["/bin/bash", "/app/modules/backend/start_all.sh"]
+# Comando padrão para iniciar a API
+CMD ["bash", "-c", "cd /app/modules/backend && python -m uvicorn src.main:app --host 0.0.0.0 --port 2020"]

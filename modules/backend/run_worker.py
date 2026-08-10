@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 # Adiciona o diretório do backend ao path para importações
-backend_src = Path(__file__).parent / "modules" / "backend" / "src"
+backend_src = Path(__file__).parent / "src"
 if backend_src.exists():
     sys.path.insert(0, str(backend_src.parent))
 

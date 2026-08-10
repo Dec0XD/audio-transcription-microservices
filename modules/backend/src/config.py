@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     
     # File Upload
     MAX_UPLOAD_SIZE_MB: int = Field(
-        default=500,
+        default=5120,
         description="Maximum upload size in MB"
     )
     ALLOWED_EXTENSIONS: str = Field(
