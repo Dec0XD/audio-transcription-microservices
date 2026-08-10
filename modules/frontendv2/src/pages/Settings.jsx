@@ -68,87 +68,74 @@ export default function Settings() {
       
       // Enviar para o backend
       const result = await audioService.updateApiKeys(apiKeys)
-      
-      if (result.success) {
-        toast.success('🎉 Chaves atualizadas e modelos recarregados!', {
-          duration: 5000,
-        })
-        
-        // Mostrar modelos atualizados
-        if (result.updated_models && result.updated_models.length > 0) {
-          const modelsMsg = result.updated_models
-            .map(m => `✅ ${m.model}: ${m.device}`)
-            .join('\n')
-          
-          toast.success(modelsMsg, {
-            duration: 6000,
-            style: {
-              whiteSpace: 'pre-line',
-            }
-          })
-        }
-        
-        // Atualizar status do sistema
-        await checkSystemHealth()
-        
-        // Manter as chaves nos campos para referência
-        // setApiKeys({ hfToken: '', aaiApiKey: '' })
-      } else {
-        // Mostrar erros detalhados
-        if (result.errors && result.errors.length > 0) {
-          result.errors.forEach(error => {
-            if (error.includes('Token inválido') || error.includes('401')) {
-              toast.error(
-                <div className="space-y-2">
-                  <p className="font-semibold">❌ {error}</p>
-                  <p className="text-xs">
-                    Verifique se:
-                    <br />• O token está correto (começa com hf_)
-                    <br />• Tem permissão "Read"
-                    <br />• Foi criado em: huggingface.co/settings/tokens
-                  </p>
-                </div>,
-                { duration: 10000 }
-              )
-            } else if (error.includes('Acesso negado') || error.includes('403')) {
-              toast.error(
-                <div className="space-y-2">
-                  <p className="font-semibold">❌ {error}</p>
-                  <p className="text-xs">
-                    Aceite os termos de uso:
-                    <br />• https://huggingface.co/pyannote/speaker-diarization
-                    <br />• https://huggingface.co/pyannote/segmentation
-                  </p>
-                </div>,
-                { duration: 10000 }
-              )
-            } else {
-              toast.error(error, { duration: 8000 })
-            }
-          })
-        }
-        
-        // Se algum modelo foi carregado com sucesso, mostrar
-        if (result.updated_models && result.updated_models.length > 0) {
-          const modelsMsg = result.updated_models
-            .map(m => `✅ ${m.model}: ${m.device}`)
-            .join('\n')
-          
-          toast.success('Modelos carregados parcialmente:\n' + modelsMsg, {
-            duration: 6000,
-            style: {
-              whiteSpace: 'pre-line',
-            }
-          })
-        }
-        
-        // Atualizar status do sistema mesmo com erros
-        await checkSystemHealth()
+
+      // ── 1. Chaves salvas com sucesso no banco ──────────────────────────────
+      if (result.keys_saved) {
+        toast.success('✅ Chaves salvas com sucesso!', { duration: 4000 })
       }
-      
+
+      // ── 2. Modelos que carregaram com sucesso ──────────────────────────────
+      if (result.updated_models && result.updated_models.length > 0) {
+        const modelsMsg = result.updated_models
+          .map(m => `✅ ${m.model}: ${m.device}`)
+          .join('\n')
+        toast.success(modelsMsg, {
+          duration: 6000,
+          style: { whiteSpace: 'pre-line' },
+        })
+      }
+
+      // ── 3. Erros de engine (aviso, não erro crítico — chave já foi salva) ──
+      if (result.errors && result.errors.length > 0) {
+        result.errors.forEach(error => {
+          if (error.includes('Token inválido') || error.includes('401')) {
+            toast(
+              <div className="space-y-2">
+                <p className="font-semibold">⚠️ {error}</p>
+                <p className="text-xs">
+                  Verifique se:
+                  <br />• O token está correto (começa com hf_)
+                  <br />• Tem permissão "Read"
+                  <br />• Foi criado em: huggingface.co/settings/tokens
+                </p>
+                <p className="text-xs text-green-700 font-medium">
+                  💾 A chave foi salva e será usada no próximo restart.
+                </p>
+              </div>,
+              { duration: 10000, icon: '⚠️' }
+            )
+          } else if (error.includes('Acesso negado') || error.includes('403')) {
+            toast(
+              <div className="space-y-2">
+                <p className="font-semibold">⚠️ {error}</p>
+                <p className="text-xs">
+                  Aceite os termos de uso:
+                  <br />• https://huggingface.co/pyannote/speaker-diarization
+                  <br />• https://huggingface.co/pyannote/segmentation
+                </p>
+                <p className="text-xs text-green-700 font-medium">
+                  💾 A chave foi salva e será usada no próximo restart.
+                </p>
+              </div>,
+              { duration: 10000, icon: '⚠️' }
+            )
+          } else {
+            toast(error, { duration: 8000, icon: '⚠️' })
+          }
+        })
+      }
+
+      // ── 4. Sucesso total — nenhum erro ─────────────────────────────────────
+      if (result.success) {
+        toast.success('🎉 Todos os modelos estão ativos!', { duration: 5000 })
+      }
+
+      // Atualizar status do sistema
+      await checkSystemHealth()
+
     } catch (error) {
       console.error(error)
-      toast.error('Erro ao salvar chaves de API: ' + (error.response?.data?.detail || error.message))
+      toast.error('Erro de comunicação com o backend: ' + (error.response?.data?.detail || error.message))
     } finally {
       setSavingKeys(false)
     }

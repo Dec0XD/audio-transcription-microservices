@@ -60,6 +60,7 @@ async def update_api_keys(
 
         updated_models: list = []
         errors: list = []
+        keys_saved: bool = False
 
         # Persistir chaves antes de tentar carregar os engines
         keys_to_save: dict = {}
@@ -72,6 +73,7 @@ async def update_api_keys(
 
         if keys_to_save:
             api_keys_manager.set_multiple(keys_to_save)
+            keys_saved = True
             logger.info(f"✅ Chaves salvas persistentemente: {list(keys_to_save.keys())}")
 
         # Adquirir lock antes de qualquer reatribuição de engine
@@ -162,10 +164,16 @@ async def update_api_keys(
 
         return {
             "success": len(errors) == 0,
+            "keys_saved": keys_saved,
             "message": (
-                "API Keys atualizadas e modelos recarregados"
+                "API Keys atualizadas e modelos recarregados com sucesso!"
                 if not errors
-                else "Algumas chaves não puderam ser atualizadas"
+                else (
+                    "Chaves salvas! Alguns modelos não puderam ser carregados agora "
+                    "(verifique os erros abaixo). As chaves serão usadas no próximo restart."
+                    if keys_saved
+                    else "Algumas chaves não puderam ser atualizadas"
+                )
             ),
             "updated_models": updated_models,
             "errors": errors,
